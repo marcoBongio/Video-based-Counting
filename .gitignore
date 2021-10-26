@@ -1,0 +1,7 @@
+
+*.h5
+*.jpg
+*.json
+*.DS_Store
+
+TimeSformer/
