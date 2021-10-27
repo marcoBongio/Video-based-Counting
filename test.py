@@ -15,6 +15,7 @@ import cv2
 from torchvision import transforms
 
 from sklearn.metrics import mean_squared_error, mean_absolute_error
+from variables import HEIGHT,WIDTH
 
 transform = transforms.Compose([
     transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -32,7 +33,7 @@ model = CANNet2s()
 model = model.cuda()
 
 # modify the path of saved checkpoint if necessary
-checkpoint = torch.load('fdst.pth.tar')
+checkpoint = torch.load('model_best.pth.tar')
 
 model.load_state_dict(checkpoint['state_dict'])
 
@@ -45,7 +46,7 @@ for i in range(len(img_paths)):
     img_path = img_paths[i]
 
     img_folder = os.path.dirname(img_path)
-    print(img_folder)
+    #print(img_folder)
     img_name = os.path.basename(img_path)
     index = int(img_name.split('.')[0])
 
@@ -56,8 +57,8 @@ for i in range(len(img_paths)):
     prev_img = Image.open(prev_img_path).convert('RGB')
     img = Image.open(img_path).convert('RGB')
 
-    prev_img = prev_img.resize((640, 360))
-    img = img.resize((640, 360))
+    prev_img = prev_img.resize((HEIGHT, WIDTH))
+    img = img.resize((HEIGHT, WIDTH))
 
     prev_img = transform(prev_img).cuda()
     img = transform(img).cuda()

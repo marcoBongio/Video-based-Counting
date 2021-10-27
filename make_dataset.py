@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 from scipy.ndimage.filters import gaussian_filter
 import json
 from image import *
+from variables import HEIGHT,WIDTH
 
 # set the root to the path of FDST dataset you download
 root = ''
@@ -33,12 +34,12 @@ for img_path in img_paths:
 
     anno_list = list(gt.values())[0]['regions']
     img = plt.imread(img_path)
-    k = np.zeros((100, 100))
-    rate_h = img.shape[0] / 100.0
-    rate_w = img.shape[1] / 100.0
+    k = np.zeros((HEIGHT, WIDTH))
+    rate_h = img.shape[0] / HEIGHT
+    rate_w = img.shape[1] / WIDTH
     for i in range(0, len(anno_list)):
-        y_anno = min(int(anno_list[i]['shape_attributes']['y'] / rate_h), 100)
-        x_anno = min(int(anno_list[i]['shape_attributes']['x'] / rate_w), 100)
+        y_anno = min(int(anno_list[i]['shape_attributes']['y'] / rate_h), HEIGHT)
+        x_anno = min(int(anno_list[i]['shape_attributes']['x'] / rate_w), WIDTH)
         k[y_anno, x_anno] = 1
     k = gaussian_filter(k, 3)
     with h5py.File(img_path.replace('.jpg', '_resize.h5'), 'w') as hf:

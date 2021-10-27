@@ -3,6 +3,7 @@ import torch
 from torch.nn import functional as F
 from torchvision import models
 import TimeSformerCC
+from variables import HEIGHT,WIDTH,NUM_FRAMES
 from utils import save_net, load_net
 
 
@@ -39,13 +40,13 @@ class ContextualModule(nn.Module):
 class CANNet2s(nn.Module):
     def __init__(self, load_weights=False):
         super(CANNet2s, self).__init__()
-        self.context = ContextualModule(256,256)#(512, 512)
-        self.timesformer = TimeSformerCC.TimeSformer(img_size=100, num_frames=2, attention_type='divided_space_time')
-        self.frontend_feat = [64, 64, 'M', 128, 128, 'M', 256, 256, 256]#, 'M', 512, 512, 512]
-        self.backend_feat = [512, 512, 512, 256, 128, 64]
+        self.context = ContextualModule(512, 512)  # (1024, 1024)
+        self.timesformer = TimeSformerCC.TimeSformer(img_size=HEIGHT, num_frames=NUM_FRAMES, attention_type='divided_space_time')
+        self.frontend_feat = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512]#, 'M', 1024, 1024, 1024]
+        # self.backend_feat = [512, 512, 512,256,128,64]
         self.frontend = make_layers(self.frontend_feat)
-        self.backend = make_layersTS(self.backend_feat, in_channels=512, batch_norm=True, dilation=True)
-        self.output_layer = nn.Conv2d(64, 10, kernel_size=1)
+        # self.backend = make_layers(self.backend_feat,in_channels = 1024, batch_norm=True, dilation = True)
+        # self.output_layer = nn.Conv2d(64, 10, kernel_size=1)
         self.relu = nn.ReLU()
         if not load_weights:
             mod = models.vgg16(pretrained=True)
@@ -61,15 +62,17 @@ class CANNet2s(nn.Module):
         x_prev = self.context(x_prev)
         x = self.context(x)
 
+        #print(x.shape)
         x = torch.cat((x_prev, x), 0)
+        #print(x.shape)
         x = x[None, :]
         x = self.timesformer(x)
-
+        # print(x.shape)
         # x = torch.cat((x_prev, x), 1)
         # x = self.backend(x)
         # x = self.output_layer(x)
 
-        x = self.relu(x)
+        # x = self.relu(x)
         #print("x_final = " + str(x))
         return x
 
@@ -100,19 +103,4 @@ def make_layers(cfg, in_channels=3, batch_norm=False, dilation=False):
             else:
                 layers += [conv2d, nn.ReLU(inplace=True)]
             in_channels = v
-    return nn.Sequential(*layers)
-
-def make_layersTS(cfg, in_channels=3, batch_norm=False, dilation=False):
-    if dilation:
-        d_rate = 2
-    else:
-        d_rate = 1
-    layers = []
-    for v in cfg:
-        conv2d = nn.Conv2d(in_channels, v, kernel_size=1, padding=d_rate, dilation=d_rate)
-        if batch_norm:
-            layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=True)]
-        else:
-            layers += [conv2d, nn.ReLU(inplace=True)]
-        in_channels = v
     return nn.Sequential(*layers)

@@ -44,8 +44,9 @@ def main():
         val_list = json.load(outfile)
 
     torch.cuda.manual_seed(args.seed)
+    torch.autograd.detect_anomaly()
 
-    model = CANNet2s()
+    model = CANNet2s(load_weights=False)
 
     model = model.cuda()
 
@@ -119,7 +120,6 @@ def train(train_list, model, criterion, optimizer, epoch):
         # mask the boundary locations where people can move in/out between regions outside image plane
         #print(prev_flow.shape)
 
-        """
         mask_boundry = torch.zeros(prev_flow.shape[2:])
         mask_boundry[0, :] = 1.0
         mask_boundry[-1, :] = 1.0
@@ -220,7 +220,6 @@ def train(train_list, model, criterion, optimizer, epoch):
                                                                                  post_flow_inverse[0, 0, 1:, 1:])
         """
 
-        #print(prev_flow)
         reconstruction_from_prev = prev_flow[0, 0] + prev_flow[0, 1] + prev_flow[0, 2] + prev_flow[0, 3] + prev_flow[
             0, 4] + prev_flow[0, 5] + prev_flow[0, 6] + prev_flow[0, 7] + prev_flow[0, 8] + prev_flow[0, 9]
         #print(reconstruction_from_prev)
@@ -281,7 +280,7 @@ def train(train_list, model, criterion, optimizer, epoch):
                                                                                  post_flow_inverse[0, 2]) + criterion(
             post_flow[0, 7], post_flow_inverse[0, 1]) + criterion(post_flow[0, 8],
                                                                                  post_flow_inverse[0, 0])
-
+        """
         loss = loss_prev_flow + loss_post_flow + loss_prev_flow_inverse + loss_post_flow_inverse + loss_prev + loss_post + loss_prev_consistency + loss_post_consistency
 
         losses.update(loss.item(), img.size(0))
@@ -350,6 +349,11 @@ def validate(val_list, model, criterion):
         reconstruction_from_prev_inverse = torch.sum(prev_flow_inverse[0, :9, :, :], dim=0) + prev_flow_inverse[0, 9, :,
                                                                                               :] * mask_boundry
 
+        """
+        reconstruction_from_prev = prev_flow[0, 0] + prev_flow[0, 1] + prev_flow[0, 2] + prev_flow[0, 3] + prev_flow[0, 4] + prev_flow[0, 5] + prev_flow[0, 6] + prev_flow[0, 7] + prev_flow[0, 8] + prev_flow[0, 9]
+
+        reconstruction_from_prev_inverse = torch.sum(prev_flow_inverse[0, :9], dim=0) + prev_flow_inverse[0, 9]
+        """
         overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).type(torch.FloatTensor)
 
         target = target.type(torch.FloatTensor)
