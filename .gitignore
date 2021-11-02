@@ -5,3 +5,5 @@
 *.DS_Store
 
 TimeSformer/
+.idea/
+__pycache__/

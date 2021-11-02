@@ -44,7 +44,7 @@ def main():
         val_list = json.load(outfile)
 
     torch.cuda.manual_seed(args.seed)
-    torch.autograd.detect_anomaly()
+    #torch.autograd.detect_anomaly()
 
     model = CANNet2s(load_weights=False)
 
