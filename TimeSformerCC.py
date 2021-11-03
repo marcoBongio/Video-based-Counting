@@ -16,7 +16,7 @@ from TimeSformer.timesformer.models.vit_utils import DropPath, to_2tuple, trunc_
 
 from timm.models.registry import register_model
 from torch import einsum
-from einops import rearrange, reduce, repeat
+from einops import rearrange, repeat
 from variables import HEIGHT,WIDTH,PATCH_SIZE,EMBED_DIM,AVG_POOL_SIZE
 
 def _cfg(url='', **kwargs):
@@ -326,8 +326,9 @@ class VisionTransformer(nn.Module):
         #x = self.head(x)
         #print("x_head = " + str(x.shape))
         x = F.adaptive_avg_pool1d(x, (AVG_POOL_SIZE))
-
+        #print(x.shape)
         x = x.view(x.shape[0], -1)
+        #print(x.shape)
         x = self.output1(x)
         #print("x_out = " + str(x))
 

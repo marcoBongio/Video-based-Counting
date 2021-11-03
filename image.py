@@ -26,9 +26,9 @@ def load_data(img_path,train = True):
     img = Image.open(img_path).convert('RGB')
     post_img = Image.open(post_img_path).convert('RGB')
 
-    prev_img = prev_img.resize((HEIGHT,WIDTH))
-    img = img.resize((HEIGHT,WIDTH))
-    post_img = post_img.resize((HEIGHT,WIDTH))
+    prev_img = prev_img.resize((WIDTH,HEIGHT))
+    img = img.resize((WIDTH,HEIGHT))
+    post_img = post_img.resize((WIDTH,HEIGHT))
 
     gt_file = h5py.File(gt_path)
     target = np.asarray(gt_file['density'])
