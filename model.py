@@ -3,7 +3,7 @@ import torch
 from torch.nn import functional as F
 from torchvision import models
 import TimeSformerCC
-from variables import HEIGHT,WIDTH,NUM_FRAMES
+from variables import HEIGHT, WIDTH, NUM_FRAMES, DIM_TS
 from utils import save_net, load_net
 
 
@@ -27,7 +27,8 @@ class ContextualModule(nn.Module):
 
     def forward(self, feats):
         h, w = feats.size(2), feats.size(3)
-        multi_scales = [F.interpolate(input=stage(feats), size=(h, w), mode='bilinear', align_corners=True) for stage in self.scales]
+        multi_scales = [F.interpolate(input=stage(feats), size=(h, w), mode='bilinear', align_corners=True) for stage in
+                        self.scales]
         weights = [self.__make_weight(feats, scale_feature) for scale_feature in multi_scales]
         overall_features = [(multi_scales[0] * weights[0] + multi_scales[1] * weights[1] + multi_scales[2] * weights[
             2] + multi_scales[3] * weights[3]) / (weights[0] + weights[1] + weights[2] + weights[3])] + [feats]
@@ -41,12 +42,13 @@ class CANNet2s(nn.Module):
     def __init__(self, load_weights=False):
         super(CANNet2s, self).__init__()
         self.context = ContextualModule(512, 512)  # (1024, 1024)
-        self.timesformer = TimeSformerCC.TimeSformer(img_size=HEIGHT, num_frames=NUM_FRAMES, attention_type='divided_space_time')
-        self.frontend_feat = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512]#, 'M', 1024, 1024, 1024]
-        #self.backend_feat = [512, 512, 512,256,128,64]
+        self.timesformer = TimeSformerCC.TimeSformer(img_size=DIM_TS, num_frames=NUM_FRAMES,
+                                                     attention_type='divided_space_time')
+        self.frontend_feat = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512]  # , 'M', 1024, 1024, 1024]
+        self.backend_feat = [512, 512, 512, 256, 128, 64]
         self.frontend = make_layers(self.frontend_feat)
-        #self.backend = make_layers(self.backend_feat,in_channels = 128, batch_norm=True, dilation = True)
-        #self.output_layer = nn.Conv2d(64, 10, kernel_size=1)
+        self.backend = make_layers(self.backend_feat, in_channels=1024, batch_norm=True, dilation=True)
+        self.output_layer = nn.Conv2d(64, 10, kernel_size=1)
         self.relu = nn.ReLU()
         if not load_weights:
             mod = models.vgg16(pretrained=True)
@@ -62,19 +64,21 @@ class CANNet2s(nn.Module):
         x_prev = self.context(x_prev)
         x = self.context(x)
 
-        #print(x.shape)
+        # print(x.shape)
         x = torch.cat((x_prev, x), 0)
 
-        #print(x.shape)
+        # print(x.shape)
         x = x[None, :]
+        # print(x.shape)
         x = self.timesformer(x)
-        #print(x.shape)
-        #x = torch.cat((x_prev, x), 1)
-        #x = self.backend(x)
-        #x = self.output_layer(x)
-        #print(x.shape)
-        #x = self.relu(x)
-        #print("x_final = " + str(x))
+        # print(x.shape)
+        # x = torch.cat((x_prev, x), 1)
+        # print(x.shape)
+        x = self.backend(x)
+        x = self.output_layer(x)
+        # print(x.shape)
+        x = self.relu(x)
+        # print("x_final = " + str(x))
         return x
 
     def _initialize_weights(self):

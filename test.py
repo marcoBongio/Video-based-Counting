@@ -15,7 +15,7 @@ import cv2
 from torchvision import transforms
 
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-from variables import HEIGHT,WIDTH
+from variables import HEIGHT, WIDTH
 
 transform = transforms.Compose([
     transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -33,7 +33,7 @@ model = CANNet2s()
 model = model.cuda()
 
 # modify the path of saved checkpoint if necessary
-checkpoint = torch.load('model_best.pth.tar')
+checkpoint = torch.load('model_best1.pth.tar')
 
 model.load_state_dict(checkpoint['state_dict'])
 
@@ -46,7 +46,7 @@ for i in range(len(img_paths)):
     img_path = img_paths[i]
 
     img_folder = os.path.dirname(img_path)
-    #print(img_folder)
+    print(str(i) + "/" + str(len(img_paths)))
     img_name = os.path.basename(img_path)
     index = int(img_name.split('.')[0])
 
@@ -57,8 +57,8 @@ for i in range(len(img_paths)):
     prev_img = Image.open(prev_img_path).convert('RGB')
     img = Image.open(img_path).convert('RGB')
 
-    prev_img = prev_img.resize((HEIGHT, WIDTH))
-    img = img.resize((HEIGHT, WIDTH))
+    prev_img = prev_img.resize((WIDTH, HEIGHT))
+    img = img.resize((WIDTH, HEIGHT))
 
     prev_img = transform(prev_img).cuda()
     img = transform(img).cuda()
@@ -66,6 +66,9 @@ for i in range(len(img_paths)):
     gt_path = img_path.replace('.jpg', '_resize.h5')
     gt_file = h5py.File(gt_path)
     target = np.asarray(gt_file['density'])
+    #print(np.sum(target))
+    #target_res = cv2.resize(target, (int(target.shape[1] / PATCH_SIZE), int(target.shape[0] / PATCH_SIZE)),
+    #                    interpolation=cv2.INTER_CUBIC) * (PATCH_SIZE ^ 2)
 
     prev_img = prev_img.cuda()
     prev_img = Variable(prev_img)
@@ -103,8 +106,10 @@ for i in range(len(img_paths)):
     target = target
 
     pred_sum = overall.sum()
+    print("PRED = " + str(pred_sum))
     pred.append(pred_sum)
     gt.append(np.sum(target))
+    print("GT = " + str(np.sum(target)))
 
 mae = mean_absolute_error(pred, gt)
 rmse = np.sqrt(mean_squared_error(pred, gt))

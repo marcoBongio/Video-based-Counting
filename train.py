@@ -29,22 +29,22 @@ def main():
     best_prec1 = 1e6
 
     args = parser.parse_args()
-    args.lr = 5e-5
+    args.lr = 1e-5
     args.batch_size = 1
     args.momentum = 0.95
-    args.decay = 5 * 1e-4
+    args.decay = 1e-4
     args.start_epoch = 0
-    args.epochs = 20
+    args.epochs = 8
     args.workers = 4
     args.seed = int(time.time())
-    args.print_freq = 100
+    args.print_freq = 1000
     with open(args.train_json, 'r') as outfile:
         train_list = json.load(outfile)
     with open(args.val_json, 'r') as outfile:
         val_list = json.load(outfile)
 
     torch.cuda.manual_seed(args.seed)
-    #torch.autograd.detect_anomaly()
+    # torch.autograd.detect_anomaly()
 
     model = CANNet2s(load_weights=False)
 
@@ -118,7 +118,7 @@ def train(train_list, model, criterion, optimizer, epoch):
         post_target = Variable(post_target)
 
         # mask the boundary locations where people can move in/out between regions outside image plane
-        #print(prev_flow.shape)
+        # print(prev_flow.shape)
 
         mask_boundry = torch.zeros(prev_flow.shape[2:])
         mask_boundry[0, :] = 1.0
@@ -287,11 +287,12 @@ def validate(val_list, model, criterion):
         reconstruction_from_prev_inverse = torch.sum(prev_flow_inverse[0, :9, :, :], dim=0) + prev_flow_inverse[0, 9, :,
                                                                                               :] * mask_boundry
 
-
         overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).type(torch.FloatTensor)
-
         target = target.type(torch.FloatTensor)
 
+        if i % args.print_freq == 0:
+            print("PRED = " + str(overall.data.sum()))
+            print("GT = " + str(target.sum()))
         mae += abs(overall.data.sum() - target.sum())
 
     mae = mae / len(val_loader)
