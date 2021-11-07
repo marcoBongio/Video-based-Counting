@@ -17,7 +17,9 @@ from TimeSformer.timesformer.models.vit_utils import DropPath, to_2tuple, trunc_
 from timm.models.registry import register_model
 from torch import einsum
 from einops import rearrange, repeat
-from variables import HEIGHT,WIDTH,PATCH_SIZE_TS,PATCH_SIZE_PF,EMBED_DIM,AVG_POOL_SIZE
+from variables import HEIGHT, WIDTH, PATCH_SIZE_TS, PATCH_SIZE_PF, EMBED_DIM, AVG_POOL_SIZE, NUM_HEADS, DEPTH_TS, \
+    BE_CHANNELS, IN_CHANS
+
 
 def _cfg(url='', **kwargs):
     return {
@@ -35,7 +37,12 @@ default_cfgs = {
         url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_base_p16_224-80ecf9dd.pth',
         mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5),
     ),
+    'vit_base_patch16_384': _cfg(
+        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_base_p16_384-83fb41ba.pth',
+        mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5),
+    )
 }
+
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
@@ -55,6 +62,7 @@ class Mlp(nn.Module):
         x = self.drop(x)
         return x
 
+
 class Attention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., with_qkv=True):
         super().__init__()
@@ -70,7 +78,7 @@ class Attention(nn.Module):
 
     def forward(self, x):
         B, N, C = x.shape
-        #print(x.shape)
+        # print(x.shape)
         if self.with_qkv:
             qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
             q, k, v = qkv[0], qkv[1], qkv[2]
@@ -87,6 +95,7 @@ class Attention(nn.Module):
             x = self.proj(x)
             x = self.proj_drop(x)
         return x
+
 
 class Block(nn.Module):
 
@@ -112,7 +121,6 @@ class Block(nn.Module):
         self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
-
 
     def forward(self, x, B, T, W):
         num_spatial_tokens = (x.size(1) - 1) // T
@@ -154,9 +162,11 @@ class Block(nn.Module):
             x = x + self.drop_path(self.mlp(self.norm2(x)))
             return x
 
+
 class PatchEmbed(nn.Module):
     """ Image to Patch Embedding
     """
+
     def __init__(self, img_size=224, patch_size=16, in_chans=3, embed_dim=768):
         super().__init__()
         img_size = to_2tuple(img_size)
@@ -170,8 +180,10 @@ class PatchEmbed(nn.Module):
 
     def forward(self, x):
         B, T, C, H, W = x.shape
+        #print(x.shape)
         x = rearrange(x, 'b t c h w -> (b t) c h w')
-        #x = self.proj(x)
+        #print(x.shape)
+        x = self.proj(x)
         W = x.size(-1)
         x = x.flatten(2).transpose(1, 2)
         return x, T, W
@@ -180,7 +192,8 @@ class PatchEmbed(nn.Module):
 class VisionTransformer(nn.Module):
     """ Vision Transformere
     """
-    def __init__(self, img_size=224, patch_size=16, in_chans=3, num_classes=1000, embed_dim=768, depth=12,
+
+    def __init__(self, img_size=224, patch_size=16, in_chans=IN_CHANS, num_classes=1000, embed_dim=768, depth=12,
                  num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
                  drop_path_rate=0.1, hybrid_backbone=None, norm_layer=nn.LayerNorm, num_frames=8,
                  attention_type='divided_space_time', dropout=0.):
@@ -242,8 +255,10 @@ class VisionTransformer(nn.Module):
         self.output1 = nn.Sequential(
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(2*AVG_POOL_SIZE*math.floor(HEIGHT/8)*math.floor(WIDTH/8), 10*math.floor(HEIGHT/PATCH_SIZE_PF)*math.floor(WIDTH/PATCH_SIZE_PF)),
-            nn.ReLU()
+            #nn.Linear(2 * AVG_POOL_SIZE * math.floor(HEIGHT / 8) * math.floor(WIDTH / 8),
+            #          10 * math.floor(HEIGHT / PATCH_SIZE_PF) * math.floor(WIDTH / PATCH_SIZE_PF)),
+            #nn.Linear(100 * AVG_POOL_SIZE, 307200),
+            #nn.ReLU()
         )
         self.output1.apply(self._init_weights)
 
@@ -322,6 +337,7 @@ class VisionTransformer(nn.Module):
         return x[:, 1:]
 
     def forward(self, x):
+        #print(x.shape)
         x = self.forward_features(x)
         #print("x_ff = " + str(x.shape))
         #x = self.head(x)
@@ -330,12 +346,14 @@ class VisionTransformer(nn.Module):
         #print(x.shape)
         x = x.view(x.shape[0], -1)
         #print(x.shape)
-        #x = self.output1(x)
+        x = self.output1(x)
         #print("x_out = " + str(x))
 
-        x = rearrange(x, 'b (f h w) -> b f h w', b=1, f=1024, h=math.floor(HEIGHT/PATCH_SIZE_PF), w=math.floor(WIDTH/PATCH_SIZE_PF))
+        x = rearrange(x, 'b (f h w) -> b f h w', b=1, f=64, h=math.floor(HEIGHT / PATCH_SIZE_PF),
+                      w=math.floor(WIDTH / PATCH_SIZE_PF))
 
         return x
+
 
 def _conv_filter(state_dict, patch_size=PATCH_SIZE_TS):
     """ convert patch embedding weight from manual patchify + linear proj to conv"""
@@ -347,6 +365,7 @@ def _conv_filter(state_dict, patch_size=PATCH_SIZE_TS):
             v = v.reshape((v.shape[0], 3, patch_size, patch_size))
         out_dict[k] = v
     return out_dict
+
 
 @register_model
 class vit_base_patch16_224(nn.Module):
@@ -361,7 +380,7 @@ class vit_base_patch16_224(nn.Module):
                                        attention_type=cfg.TIMESFORMER.ATTENTION_TYPE, **kwargs)
 
         self.attention_type = cfg.TIMESFORMER.ATTENTION_TYPE
-        self.model.default_cfg = default_cfgs['vit_base_patch' + str(patch_size) + '_224']
+        self.model.default_cfg = default_cfgs['vit_base_patch16_' + str(cfg.DATA.TRAIN_CROP_SIZE)]
         self.num_patches = (cfg.DATA.TRAIN_CROP_SIZE // patch_size) * (cfg.DATA.TRAIN_CROP_SIZE // patch_size)
         pretrained_model = cfg.TIMESFORMER.PRETRAINED_MODEL
         if self.pretrained:
@@ -373,6 +392,7 @@ class vit_base_patch16_224(nn.Module):
         x = self.model(x)
         return x
 
+
 @register_model
 class TimeSformer(nn.Module):
     def __init__(self, img_size=224, patch_size=PATCH_SIZE_TS, num_frames=8, attention_type='divided_space_time',
@@ -380,13 +400,13 @@ class TimeSformer(nn.Module):
         super(TimeSformer, self).__init__()
         self.pretrained = False
         self.model = VisionTransformer(img_size=img_size, patch_size=patch_size, embed_dim=EMBED_DIM,
-                                       depth=2, num_heads=8, mlp_ratio=4, qkv_bias=True,
+                                       depth=DEPTH_TS, num_heads=NUM_HEADS, mlp_ratio=4, qkv_bias=True,
                                        norm_layer=partial(nn.LayerNorm, eps=1e-6), drop_rate=0., attn_drop_rate=0.,
                                        drop_path_rate=0.1, num_frames=num_frames, attention_type=attention_type,
                                        **kwargs)
 
         self.attention_type = attention_type
-        self.model.default_cfg = default_cfgs['vit_base_patch' + str(patch_size) + '_224']
+        self.model.default_cfg = default_cfgs['vit_base_patch16_' + str(img_size)]
         self.num_patches = (img_size // patch_size) * (img_size // patch_size)
         if self.pretrained:
             load_pretrained(self.model, num_classes=self.model.num_classes, in_chans=kwargs.get('in_chans', 3),

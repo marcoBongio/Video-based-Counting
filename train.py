@@ -7,6 +7,7 @@ from torch import nn
 from torch.autograd import Variable
 from torchvision import datasets, transforms
 import torch.nn.functional as F
+from torchinfo import summary
 
 import numpy as np
 import argparse
@@ -14,6 +15,8 @@ import json
 import cv2
 import dataset
 import time
+
+from variables import WIDTH, HEIGHT
 
 parser = argparse.ArgumentParser(description='PyTorch CANNet2s')
 
@@ -34,10 +37,10 @@ def main():
     args.momentum = 0.95
     args.decay = 1e-4
     args.start_epoch = 0
-    args.epochs = 8
+    args.epochs = 10
     args.workers = 4
     args.seed = int(time.time())
-    args.print_freq = 1000
+    args.print_freq = 100
     with open(args.train_json, 'r') as outfile:
         train_list = json.load(outfile)
     with open(args.val_json, 'r') as outfile:
@@ -54,6 +57,9 @@ def main():
 
     optimizer = torch.optim.Adam(model.parameters(), args.lr,
                                  weight_decay=args.decay)
+
+    #summary(model, input_size=(args.batch_size, 3, WIDTH, HEIGHT))
+    print(model)
 
     for epoch in range(args.start_epoch, args.epochs):
         train(train_list, model, criterion, optimizer, epoch)
@@ -218,6 +224,15 @@ def train(train_list, model, criterion, optimizer, epoch):
                                                                                  :-1]) + criterion(
             post_flow[0, 7, :-1, :], post_flow_inverse[0, 1, 1:, :]) + criterion(post_flow[0, 8, :-1, :-1],
                                                                                  post_flow_inverse[0, 0, 1:, 1:])
+
+        """print("loss_prev_flow = " + str(loss_prev_flow))
+        print("loss_post_flow = " + str(loss_post_flow))
+        print("loss_prev_flow_inverse = " + str(loss_prev_flow_inverse))
+        print("loss_post_flow_inverse = " + str(loss_post_flow_inverse))
+        print("loss_prev = " + str(loss_prev))
+        print("loss_post = " + str(loss_post))
+        print("loss_prev_consistency = " + str(loss_prev_consistency))
+        print("loss_post_consistency = " + str(loss_post_consistency) + "\n")"""
 
         loss = loss_prev_flow + loss_post_flow + loss_prev_flow_inverse + loss_post_flow_inverse + loss_prev + loss_post + loss_prev_consistency + loss_post_consistency
 
