@@ -58,7 +58,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), args.lr,
                                  weight_decay=args.decay)
 
-    #summary(model, input_size=(args.batch_size, 3, WIDTH, HEIGHT))
+    # summary(model, input_size=(args.batch_size, 3, WIDTH, HEIGHT))
     print(model)
 
     for epoch in range(args.start_epoch, args.epochs):
@@ -124,8 +124,6 @@ def train(train_list, model, criterion, optimizer, epoch):
         post_target = Variable(post_target)
 
         # mask the boundary locations where people can move in/out between regions outside image plane
-        # print(prev_flow.shape)
-
         mask_boundry = torch.zeros(prev_flow.shape[2:])
         mask_boundry[0, :] = 1.0
         mask_boundry[-1, :] = 1.0
@@ -190,6 +188,16 @@ def train(train_list, model, criterion, optimizer, epoch):
             post_flow[0, 5, :, :-1], (1, 0, 0, 0)) + F.pad(post_flow[0, 6, :-1, 1:], (0, 1, 1, 0)) + F.pad(
             post_flow[0, 7, :-1, :], (0, 0, 1, 0)) + F.pad(post_flow[0, 8, :-1, :-1], (1, 0, 1, 0)) + post_flow[0, 9, :,
                                                                                                       :] * mask_boundry
+
+        print("Target = " + str(np.sum(target)))
+        print("Reconstruction from prev = " + str(np.sum(reconstruction_from_prev)))
+        print("Reconstruction from post = " + str(np.sum(reconstruction_from_post)))
+        print("Reconstruction from prev inverse = " + str(np.sum(reconstruction_from_prev_inverse)))
+        print("Reconstruction from post inverse = " + str(np.sum(reconstruction_from_post_inverse)))
+        print("Prev Target = " + str(np.sum(prev_target)))
+        print("Prev Reconstruction from prev = " + str(np.sum(reconstruction_from_prev)))
+        print("Post Target = " + str(np.sum(post_target)))
+        print("Post Reconstruction from post = " + str(np.sum(reconstruction_from_prev)) + "\n")
 
         loss_prev_flow = criterion(reconstruction_from_prev, target)
         loss_post_flow = criterion(reconstruction_from_post, target)
