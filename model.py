@@ -3,8 +3,10 @@ import torch
 from torch.nn import functional as F
 from torchvision import models
 #from timesformer.models.vit import TimeSformer
-import TimeSformerCC
-from variables import HEIGHT, WIDTH, NUM_FRAMES, DIM_TS, BE_CHANNELS
+#import TimeSformerCC
+from timesformer_pytorch import TimeSformer
+from variables import HEIGHT, WIDTH, NUM_FRAMES, DIM_TS, BE_CHANNELS, PATCH_SIZE_TS, IN_CHANS, EMBED_DIM, DEPTH_TS, \
+    NUM_HEADS
 from utils import save_net, load_net
 
 
@@ -47,13 +49,16 @@ class CANNet2s(nn.Module):
 
         self.context = ContextualModule(512, 512)  # (1024, 1024)
 
-        self.timesformer = TimeSformerCC.TimeSformer(img_size=DIM_TS, num_frames=NUM_FRAMES,
-                                                    attention_type='divided_space_time')
+        #self.timesformer = TimeSformer(img_size=DIM_TS, num_frames=NUM_FRAMES,
+        #                                            attention_type='divided_space_time')
 
-        #self.backend_feat = [512, 512, 512, 256, 128, 64]
+        self.timesformer = TimeSformer(dim=EMBED_DIM, image_size=DIM_TS, patch_size=PATCH_SIZE_TS, num_frames=NUM_FRAMES,
+                                       channels=IN_CHANS, depth=DEPTH_TS, dim_head=EMBED_DIM//NUM_HEADS)
+
+        #self.backend_feat = [256, 256, 256, 128, 64]
         #self.backend = make_layers(self.backend_feat, in_channels=BE_CHANNELS, batch_norm=True, dilation=True)
 
-        self.output_layer = nn.Conv2d(64, 10, kernel_size=1)
+        #self.output_layer = nn.Conv2d(64, 10, kernel_size=1)
         self.relu = nn.ReLU()
         if not load_weights:
             mod = models.vgg16(pretrained=True)
@@ -77,12 +82,13 @@ class CANNet2s(nn.Module):
         x = x[None, :]
         # print(x.shape)
         x = self.timesformer(x)
-        # print(x.shape)
+        #print(x.shape)
         #x = torch.cat((x_prev, x), 1)
-        # print(x.shape)
+        #print(x.shape)
         #x = self.backend(x)
-        x = self.output_layer(x)
-        # print(x.shape)
+        #print(x.shape)
+        #x = self.output_layer(x)
+        #print(x.shape)
         x = self.relu(x)
         # print("x_final = " + str(x))
         return x

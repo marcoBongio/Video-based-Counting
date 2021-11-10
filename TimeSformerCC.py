@@ -67,6 +67,7 @@ class Attention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., with_qkv=True):
         super().__init__()
         self.num_heads = num_heads
+        # latent dimensionality for each attention head
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
         self.with_qkv = with_qkv
@@ -78,18 +79,21 @@ class Attention(nn.Module):
 
     def forward(self, x):
         B, N, C = x.shape
-        # print(x.shape)
+        #print(x.shape)
         if self.with_qkv:
             qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+            #print(qkv.shape)
             q, k, v = qkv[0], qkv[1], qkv[2]
         else:
             qkv = x.reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
             q, k, v = qkv, qkv, qkv
 
+        # Equation (5)Space (11)Time
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
+        # Equation (7)
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         if self.with_qkv:
             x = self.proj(x)
@@ -123,7 +127,10 @@ class Block(nn.Module):
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
     def forward(self, x, B, T, W):
-        num_spatial_tokens = (x.size(1) - 1) // T
+        num_spatial_tokens = (x.size(1)) // T
+        #print(x.size(1))
+        #print(T)
+        #print(x.shape)
         H = num_spatial_tokens // W
 
         if self.attention_type in ['space_only', 'joint_space_time']:
@@ -132,33 +139,37 @@ class Block(nn.Module):
             return x
         elif self.attention_type == 'divided_space_time':
             ## Temporal
-            xt = x[:, 1:, :]
+            #print(x.shape)
+            xt = x[:, :, :]
+            #print(xt.shape)
             xt = rearrange(xt, 'b (h w t) m -> (b h w) t m', b=B, h=H, w=W, t=T)
             res_temporal = self.drop_path(self.temporal_attn(self.temporal_norm1(xt)))
             res_temporal = rearrange(res_temporal, '(b h w) t m -> b (h w t) m', b=B, h=H, w=W, t=T)
             res_temporal = self.temporal_fc(res_temporal)
-            xt = x[:, 1:, :] + res_temporal
+            xt = x[:, :, :] + res_temporal
 
             ## Spatial
-            init_cls_token = x[:, 0, :].unsqueeze(1)
-            cls_token = init_cls_token.repeat(1, T, 1)
-            cls_token = rearrange(cls_token, 'b t m -> (b t) m', b=B, t=T).unsqueeze(1)
+            #init_cls_token = x[:, 0, :].unsqueeze(1)
+            #cls_token = init_cls_token.repeat(1, T, 1)
+            #cls_token = rearrange(cls_token, 'b t m -> (b t) m', b=B, t=T).unsqueeze(1)
             xs = xt
             xs = rearrange(xs, 'b (h w t) m -> (b t) (h w) m', b=B, h=H, w=W, t=T)
-            xs = torch.cat((cls_token, xs), 1)
+            #xs = torch.cat((cls_token, xs), 1)
             res_spatial = self.drop_path(self.attn(self.norm1(xs)))
 
             ### Taking care of CLS token
-            cls_token = res_spatial[:, 0, :]
+            """cls_token = res_spatial[:, 0, :]
             cls_token = rearrange(cls_token, '(b t) m -> b t m', b=B, t=T)
-            cls_token = torch.mean(cls_token, 1, True)  ## averaging for every frame
-            res_spatial = res_spatial[:, 1:, :]
+            cls_token = torch.mean(cls_token, 1, True)  ## averaging for every frame"""
+            res_spatial = res_spatial[:, :, :]
             res_spatial = rearrange(res_spatial, '(b t) (h w) m -> b (h w t) m', b=B, h=H, w=W, t=T)
             res = res_spatial
             x = xt
 
             ## Mlp
-            x = torch.cat((init_cls_token, x), 1) + torch.cat((cls_token, res), 1)
+            #Equation (8)
+            x = x + res
+            # Equation (9)
             x = x + self.drop_path(self.mlp(self.norm2(x)))
             return x
 
@@ -183,9 +194,14 @@ class PatchEmbed(nn.Module):
         #print(x.shape)
         x = rearrange(x, 'b t c h w -> (b t) c h w')
         #print(x.shape)
+        # split input in N patches with dimension PxP
         x = self.proj(x)
+        #print(x.shape)
         W = x.size(-1)
+        #print(W)
+        # flatten patches into vectors with dimension IN_CHANS*P^2
         x = x.flatten(2).transpose(1, 2)
+        #print("flatten = " + str(x.shape))
         return x, T, W
 
 
@@ -208,8 +224,8 @@ class VisionTransformer(nn.Module):
         num_patches = self.patch_embed.num_patches
 
         ## Positional Embeddings
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
+        #self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
         self.pos_drop = nn.Dropout(p=drop_rate)
         if self.attention_type != 'space_only':
             self.time_embed = nn.Parameter(torch.zeros(1, num_frames, embed_dim))
@@ -226,11 +242,11 @@ class VisionTransformer(nn.Module):
         self.norm = norm_layer(embed_dim)
 
         # Classifier head
-        self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+        """self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
         trunc_normal_(self.pos_embed, std=.02)
         trunc_normal_(self.cls_token, std=.02)
-        self.apply(self._init_weights)
+        self.apply(self._init_weights)"""
 
         ## initialization of temporal attention weights
         if self.attention_type == 'divided_space_time':
@@ -252,7 +268,7 @@ class VisionTransformer(nn.Module):
         )
         self.output1.apply(self._init_weights)
         """
-        self.output1 = nn.Sequential(
+        """self.output1 = nn.Sequential(
             nn.ReLU(),
             nn.Dropout(0.5),
             #nn.Linear(2 * AVG_POOL_SIZE * math.floor(HEIGHT / 8) * math.floor(WIDTH / 8),
@@ -260,7 +276,7 @@ class VisionTransformer(nn.Module):
             #nn.Linear(100 * AVG_POOL_SIZE, 307200),
             #nn.ReLU()
         )
-        self.output1.apply(self._init_weights)
+        self.output1.apply(self._init_weights)"""
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -284,12 +300,14 @@ class VisionTransformer(nn.Module):
 
     def forward_features(self, x):
         B = x.shape[0]
+        # Decomposition into patches & Linear embedding
         x, T, W = self.patch_embed(x)
-        cls_tokens = self.cls_token.expand(x.size(0), -1, -1)
-        #print(cls_tokens.shape)
-        #print(x.shape)
-        x = torch.cat((cls_tokens, x), dim=1)
+        # add a learnable vector of classification token in first position
+        #cls_tokens = self.cls_token.expand(x.size(0), -1, -1)
+        #x = torch.cat((cls_tokens, x), dim=1)
 
+        #print(x.size(1))
+        #print(self.pos_embed.size(1))
         ## resizing the positional embeddings in case they don't match the input at inference
         if x.size(1) != self.pos_embed.size(1):
             pos_embed = self.pos_embed
@@ -304,13 +322,17 @@ class VisionTransformer(nn.Module):
             new_pos_embed = torch.cat((cls_pos_embed, new_pos_embed), 1)
             x = x + new_pos_embed
         else:
+            #(x.shape)
             x = x + self.pos_embed
+            #print(x.shape)
         x = self.pos_drop(x)
 
         ## Time Embeddings
         if self.attention_type != 'space_only':
-            cls_tokens = x[:B, 0, :].unsqueeze(1)
-            x = x[:, 1:]
+            #cls_tokens = x[:B, 0, :].unsqueeze(1)
+            #print(x.shape)
+            #x = x[:, 1:]
+            #print(x.shape)
             x = rearrange(x, '(b t) n m -> (b n) t m', b=B, t=T)
             ## Resizing time embeddings in case they don't match
             if T != self.time_embed.size(1):
@@ -322,7 +344,7 @@ class VisionTransformer(nn.Module):
                 x = x + self.time_embed
             x = self.time_drop(x)
             x = rearrange(x, '(b n) t m -> b (n t) m', b=B, t=T)
-            x = torch.cat((cls_tokens, x), dim=1)
+            #x = torch.cat((cls_tokens, x), dim=1)
 
         ## Attention blocks
         for blk in self.blocks:
@@ -334,7 +356,7 @@ class VisionTransformer(nn.Module):
             x = torch.mean(x, 1)  # averaging predictions for every frame
 
         x = self.norm(x)
-        return x[:, 1:]
+        return x[:, :]
 
     def forward(self, x):
         #print(x.shape)
@@ -342,14 +364,14 @@ class VisionTransformer(nn.Module):
         #print("x_ff = " + str(x.shape))
         #x = self.head(x)
         #print("x_head = " + str(x.shape))
-        x = F.adaptive_avg_pool1d(x, (AVG_POOL_SIZE))
+        #x = F.adaptive_avg_pool1d(x, (AVG_POOL_SIZE))
         #print(x.shape)
         x = x.view(x.shape[0], -1)
         #print(x.shape)
-        x = self.output1(x)
+        #x = self.output1(x)
         #print("x_out = " + str(x))
 
-        x = rearrange(x, 'b (f h w) -> b f h w', b=1, f=64, h=math.floor(HEIGHT / PATCH_SIZE_PF),
+        x = rearrange(x, 'b (c h w) -> b c h w', b=1, c=BE_CHANNELS, h=math.floor(HEIGHT / PATCH_SIZE_PF),
                       w=math.floor(WIDTH / PATCH_SIZE_PF))
 
         return x
@@ -367,7 +389,7 @@ def _conv_filter(state_dict, patch_size=PATCH_SIZE_TS):
     return out_dict
 
 
-@register_model
+"""@register_model
 class vit_base_patch16_224(nn.Module):
     def __init__(self, cfg, **kwargs):
         super(vit_base_patch16_224, self).__init__()
@@ -390,7 +412,7 @@ class vit_base_patch16_224(nn.Module):
 
     def forward(self, x):
         x = self.model(x)
-        return x
+        return x"""
 
 
 @register_model
@@ -399,14 +421,14 @@ class TimeSformer(nn.Module):
                  pretrained_model='', **kwargs):
         super(TimeSformer, self).__init__()
         self.pretrained = False
-        self.model = VisionTransformer(img_size=img_size, patch_size=patch_size, embed_dim=EMBED_DIM,
+        self.model = VisionTransformer(img_size=img_size, patch_size=PATCH_SIZE_TS, embed_dim=EMBED_DIM,
                                        depth=DEPTH_TS, num_heads=NUM_HEADS, mlp_ratio=4, qkv_bias=True,
                                        norm_layer=partial(nn.LayerNorm, eps=1e-6), drop_rate=0., attn_drop_rate=0.,
                                        drop_path_rate=0.1, num_frames=num_frames, attention_type=attention_type,
                                        **kwargs)
 
         self.attention_type = attention_type
-        self.model.default_cfg = default_cfgs['vit_base_patch16_' + str(img_size)]
+        self.model.default_cfg = default_cfgs['vit_base_patch16_224']
         self.num_patches = (img_size // patch_size) * (img_size // patch_size)
         if self.pretrained:
             load_pretrained(self.model, num_classes=self.model.num_classes, in_chans=kwargs.get('in_chans', 3),

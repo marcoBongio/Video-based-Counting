@@ -58,7 +58,6 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), args.lr,
                                  weight_decay=args.decay)
 
-    # summary(model, input_size=(args.batch_size, 3, WIDTH, HEIGHT))
     print(model)
 
     for epoch in range(args.start_epoch, args.epochs):
@@ -189,16 +188,20 @@ def train(train_list, model, criterion, optimizer, epoch):
             post_flow[0, 7, :-1, :], (0, 0, 1, 0)) + F.pad(post_flow[0, 8, :-1, :-1], (1, 0, 1, 0)) + post_flow[0, 9, :,
                                                                                                       :] * mask_boundry
 
-        print("Target = " + str(np.sum(target)))
-        print("Reconstruction from prev = " + str(np.sum(reconstruction_from_prev)))
-        print("Reconstruction from post = " + str(np.sum(reconstruction_from_post)))
-        print("Reconstruction from prev inverse = " + str(np.sum(reconstruction_from_prev_inverse)))
-        print("Reconstruction from post inverse = " + str(np.sum(reconstruction_from_post_inverse)))
-        print("Prev Target = " + str(np.sum(prev_target)))
-        print("Prev Reconstruction from prev = " + str(np.sum(reconstruction_from_prev)))
-        print("Post Target = " + str(np.sum(post_target)))
-        print("Post Reconstruction from post = " + str(np.sum(reconstruction_from_prev)) + "\n")
-
+        """if i % args.print_freq == 0:
+            print("\nTarget = " + str(torch.sum(target)))
+            overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
+            pred_sum = overall.sum()
+            print("Pred = " + str(pred_sum))
+            print("Reconstruction from prev = " + str(torch.sum(reconstruction_from_prev)))
+            print("Reconstruction from post = " + str(torch.sum(reconstruction_from_post)))
+            print("Reconstruction from prev inverse = " + str(torch.sum(reconstruction_from_prev_inverse)))
+            print("Reconstruction from post inverse = " + str(torch.sum(reconstruction_from_post_inverse)))
+            print("Prev Target = " + str(torch.sum(prev_target)))
+            print("Prev Reconstruction from prev = " + str(torch.sum(reconstruction_from_prev)))
+            print("Post Target = " + str(torch.sum(post_target)))
+            print("Post Reconstruction from post = " + str(torch.sum(reconstruction_from_prev)) + "\n")
+"""
         loss_prev_flow = criterion(reconstruction_from_prev, target)
         loss_post_flow = criterion(reconstruction_from_post, target)
         loss_prev_flow_inverse = criterion(reconstruction_from_prev_inverse, target)
@@ -232,15 +235,15 @@ def train(train_list, model, criterion, optimizer, epoch):
                                                                                  :-1]) + criterion(
             post_flow[0, 7, :-1, :], post_flow_inverse[0, 1, 1:, :]) + criterion(post_flow[0, 8, :-1, :-1],
                                                                                  post_flow_inverse[0, 0, 1:, 1:])
-
-        """print("loss_prev_flow = " + str(loss_prev_flow))
-        print("loss_post_flow = " + str(loss_post_flow))
-        print("loss_prev_flow_inverse = " + str(loss_prev_flow_inverse))
-        print("loss_post_flow_inverse = " + str(loss_post_flow_inverse))
-        print("loss_prev = " + str(loss_prev))
-        print("loss_post = " + str(loss_post))
-        print("loss_prev_consistency = " + str(loss_prev_consistency))
-        print("loss_post_consistency = " + str(loss_post_consistency) + "\n")"""
+        """if i % args.print_freq == 0:
+            print("loss_prev_flow = " + str(loss_prev_flow))
+            print("loss_post_flow = " + str(loss_post_flow))
+            print("loss_prev_flow_inverse = " + str(loss_prev_flow_inverse))
+            print("loss_post_flow_inverse = " + str(loss_post_flow_inverse))
+            print("loss_prev = " + str(loss_prev))
+            print("loss_post = " + str(loss_post))
+            print("loss_prev_consistency = " + str(loss_prev_consistency))
+            print("loss_post_consistency = " + str(loss_post_consistency))"""
 
         loss = loss_prev_flow + loss_post_flow + loss_prev_flow_inverse + loss_post_flow_inverse + loss_prev + loss_post + loss_prev_consistency + loss_post_consistency
 
