@@ -4,8 +4,8 @@ import torch
 from einops import rearrange
 from torch.nn import functional as F
 from torchvision import models
-#from timesformer.models.vit import TimeSformer
-#import TimeSformerCC
+# from timesformer.models.vit import TimeSformer
+# import TimeSformerCC
 from timesformer_pytorch import TimeSformer
 from variables import HEIGHT, WIDTH, NUM_FRAMES, DIM_TS, BE_CHANNELS, PATCH_SIZE_TS, IN_CHANS, EMBED_DIM, DEPTH_TS, \
     NUM_HEADS, DIM_HEAD
@@ -52,66 +52,51 @@ class CANNet2s(nn.Module):
 
         self.context = ContextualModule(512, 512)  # (1024, 1024)
 
-        #self.timesformer = TimeSformer(img_size=DIM_TS, num_frames=NUM_FRAMES,
+        # self.timesformer = TimeSformer(img_size=DIM_TS, num_frames=NUM_FRAMES,
         #                                            attention_type='divided_space_time')
 
-        self.timesformer = TimeSformer(dim=EMBED_DIM, image_size=DIM_TS, patch_size=PATCH_SIZE_TS, num_frames=NUM_FRAMES,
+        self.timesformer = TimeSformer(dim=EMBED_DIM, image_size=DIM_TS, patch_size=PATCH_SIZE_TS,
+                                       num_frames=NUM_FRAMES,
                                        channels=IN_CHANS, depth=DEPTH_TS, dim_head=DIM_HEAD)
-        vit_base_patch16_224 = timm.create_model(
-            'vit_base_patch16_224',
-            pretrained=True)
-        mapping = {
-            'cls_token': 'timesformer.cls_token',
-            'patch_embed\.(.*)': 'timesformer.patch_embed.\1',
-            r'blocks\.(\d+).norm1\.(.*)': r'timesformer.layers.\1.1.norm.\2',
-            r'blocks\.(\d+).norm2\.(.*)': r'timesformer.layers.\1.2.norm.\2',
-            r'blocks\.(\d+).attn\.qkv\.weight': r'timesformer.layers.\1.1.fn.to_qkv.weight',
-            r'blocks\.(\d+).attn\.proj\.(.*)': r'timesformer.layers.\1.1.fn.to_out.0.\2',
-            r'blocks\.(\d+).mlp\.fc1\.(.*)': r'timesformer.layers.\1.2.fn.net.0.\2',
-            r'blocks\.(\d+).mlp\.fc2\.(.*)': r'timesformer.layers.\1.2.fn.net.3.\2',
-        }
-        #print(self.timesformer.state_dict().keys())
-        #vit_base_patch16_224.state_dict().keys = self.timesformer.state_dict().keys()
-        #print(vit_base_patch16_224.state_dict().keys())
-        self.timesformer.load_state_dict(vit_base_patch16_224.state_dict(), strict=False)
 
-        #self.backend_feat = [256, 256, 256, 128, 64]
-        #self.backend = make_layers(self.backend_feat, in_channels=BE_CHANNELS, batch_norm=True, dilation=True)
+        # self.backend_feat = [256, 256, 256, 128, 64]
+        # self.backend = make_layers(self.backend_feat, in_channels=BE_CHANNELS, batch_norm=True, dilation=True)
 
         self.output_layer = nn.Conv2d(10, 10, kernel_size=1)
         self.relu = nn.ReLU()
         if not load_weights:
             mod = models.vgg16(pretrained=True)
             self._initialize_weights()
+            self._initialize_timesformer_weights()
             # address the mismatch in key names for python 3
             pretrained_dict = {k[9:]: v for k, v in mod.state_dict().items() if k[9:] in self.frontend.state_dict()}
             self.frontend.load_state_dict(pretrained_dict)
 
     def forward(self, x_prev, x):
-        #print(x.shape)
+        # print(x.shape)
         x_prev = self.frontend(x_prev)
         x = self.frontend(x)
-        #print(x.shape)
+        # print(x.shape)
         x_prev = self.context(x_prev)
         x = self.context(x)
 
-        #print(x.shape)
-        #x = x[0, None, :]
+        # print(x.shape)
+        # x = x[0, None, :]
         x_prev = torch.unsqueeze(x_prev, 1)
         x = torch.unsqueeze(x, 1)
 
-        #print(x.shape)
+        # print(x.shape)
         x = torch.cat((x_prev, x), 1)
 
-        #print(x.shape)
+        # print(x.shape)
         x = self.timesformer(x)
-        #print(x.shape)
-        #x = torch.cat((x_prev, x), 1)
-        #print(x.shape)
-        #x = self.backend(x)
-        #print(x.shape)
+        # print(x.shape)
+        # x = torch.cat((x_prev, x), 1)
+        # print(x.shape)
+        # x = self.backend(x)
+        # print(x.shape)
 
-        #print(x.shape)
+        # print(x.shape)
         x = rearrange(x, 'b f (h w) -> b f h w', b=self.batch_size, f=10, h=DIM_TS, w=DIM_TS)
         x = self.output_layer(x)
         x = self.relu(x)
@@ -127,6 +112,17 @@ class CANNet2s(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
+
+    def _initialize_timesformer_weights(self):
+        base_model = timm.create_model(
+            'vit_base_patch16_224',
+            pretrained=True)
+
+        self.timesformer.load_state_dict(base_model.state_dict(), strict=False)
+
+        for layer in self.timesformer.layers:
+            prenorm_temporal_attn: nn.Module = layer[0]
+            prenorm_temporal_attn.apply(zero)
 
 
 def make_layers(cfg, in_channels=3, batch_norm=False, dilation=False):
@@ -146,3 +142,17 @@ def make_layers(cfg, in_channels=3, batch_norm=False, dilation=False):
                 layers += [conv2d, nn.ReLU(inplace=True)]
             in_channels = v
     return nn.Sequential(*layers)
+
+
+# initialize module's weights to zero
+def zero(m):
+    if hasattr(m, 'weight') and m.weight is not None:
+        nn.init.zeros_(m.weight)
+    if hasattr(m, 'bias') and m.bias is not None:
+        nn.init.zeros_(m.bias)
+
+
+def change_key(self, old, new):
+    for _ in range(len(self)):
+        k, v = self.popitem(False)
+        self[new if old == k else k] = v

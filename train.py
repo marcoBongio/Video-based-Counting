@@ -16,7 +16,7 @@ import cv2
 import dataset
 import time
 
-from variables import WIDTH, HEIGHT
+from variables import WIDTH, HEIGHT, MODEL_NAME
 
 parser = argparse.ArgumentParser(description='PyTorch CANNet2s')
 
@@ -37,7 +37,7 @@ def main():
     args.momentum = 0.95
     args.decay = 1e-4
     args.start_epoch = 0
-    args.epochs = 10
+    args.epochs = 200
     args.workers = 4
     args.seed = int(time.time())
     args.print_freq = 100
@@ -69,7 +69,9 @@ def main():
         print(' * best MAE {mae:.3f} '
               .format(mae=best_prec1))
         save_checkpoint({
-            'state_dict': model.state_dict(),
+                'epoch': epoch + 1,
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict()
         }, is_best)
 
 
@@ -87,8 +89,14 @@ def train(train_list, model, criterion, optimizer, epoch):
                             ]),
                             train=True,
                             num_workers=args.workers),
-                            batch_size=args.batch_size)
+        batch_size=args.batch_size)
     print('epoch %d, processed %d samples, lr %.10f' % (epoch, epoch * len(train_loader.dataset), args.lr))
+
+    # modify the path of saved checkpoint if necessary
+    #checkpoint = torch.load("models/" + MODEL_NAME + '.pth.tar', map_location='cpu')
+    #model.load_state_dict(checkpoint['state_dict'])
+    #optimizer.load_state_dict(checkpoint['optimizer'])
+    #args.start_epoch = checkpoint['epoch']
 
     model.train()
     end = time.time()
@@ -186,7 +194,6 @@ def train(train_list, model, criterion, optimizer, epoch):
             post_flow[0, 5, :, :-1], (1, 0, 0, 0)) + F.pad(post_flow[0, 6, :-1, 1:], (0, 1, 1, 0)) + F.pad(
             post_flow[0, 7, :-1, :], (0, 0, 1, 0)) + F.pad(post_flow[0, 8, :-1, :-1], (1, 0, 1, 0)) + post_flow[0, 9, :,
                                                                                                       :] * mask_boundry
-
 
         loss_prev_flow = criterion(reconstruction_from_prev, target)
         loss_post_flow = criterion(reconstruction_from_post, target)

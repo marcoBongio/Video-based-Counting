@@ -1,40 +1,16 @@
 import torch
-from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-from timm.models import register_model
-from torch import nn, einsum
 import torch.nn.functional as F
 from einops import rearrange, repeat
+from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+from torch import nn, einsum
 
-from TimeSformer.timesformer.models.vit import _cfg
 from timesformer_pytorch.rotary import apply_rot_emb, AxialRotaryEmbedding, RotaryEmbedding
-
 # helpers
 from variables import DIM_TS
 
 
-def _cfg(url='', **kwargs):
-    return {
-        'url': url,
-        'num_classes': 1000, 'input_size': (3, 224, 224), 'pool_size': None,
-        'crop_pct': .9, 'interpolation': 'bicubic',
-        'mean': IMAGENET_DEFAULT_MEAN, 'std': IMAGENET_DEFAULT_STD,
-        'first_conv': 'patch_embed.proj', 'classifier': 'head',
-        **kwargs
-    }
-
-
-default_cfgs = {
-    'vit_base_patch16_224': _cfg(
-        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_base_p16_224'
-            '-80ecf9dd.pth',
-        mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5),
-    ),
-}
-
-
 def exists(val):
     return val is not None
-
 
 # classes
 
@@ -300,5 +276,3 @@ class TimeSformer(nn.Module):
         # out = rearrange(out, 'b f (h w) -> b f h w', b=b, f=10, h=DIM_TS, w=DIM_TS)
         # print(out.shape)
         return out
-
-

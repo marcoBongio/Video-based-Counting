@@ -1,3 +1,4 @@
+import csv
 import math
 
 import h5py
@@ -21,7 +22,7 @@ import scipy.stats as st
 from torchvision import transforms
 
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-from variables import HEIGHT, WIDTH
+from variables import HEIGHT, WIDTH, MODEL_NAME
 
 transform = transforms.Compose([
     transforms.ToTensor(), transforms.Normalize(mean=[0.4846, 0.4558, 0.4324],
@@ -39,7 +40,7 @@ model = CANNet2s()
 model = model.cuda()
 
 # modify the path of saved checkpoint if necessary
-checkpoint = torch.load('model_best_244_7200_lucidrain.pth.tar', map_location='cpu')
+checkpoint = torch.load("models/" + MODEL_NAME + '.pth.tar', map_location='cpu')
 
 model.load_state_dict(checkpoint['state_dict'])
 
@@ -128,20 +129,13 @@ rmse = np.sqrt(mean_squared_error(pred, gt))
 print('MAE: ', mae)
 print('RMSE: ', rmse)
 
-mean = np.mean(pred)
-var = np.var(pred)
-std = np.sqrt(var)
+results = zip(errs, gt, pred)
 
-conf_int = st.t.interval(0.95, len(pred) - 1, loc=mean, scale=st.sem(pred))
+header = ["Error", "GT", "Prediction"]
 
-print("Mean = " + str(mean))
-print("Standard deviation = " + str(std))
-print("Confidence Interval = " + str(conf_int) +"\n")
+with open("results/" + MODEL_NAME + ".csv", "w") as f:
+    writer = csv.writer(f)
+    writer.writerow(header)
+    for row in results:
+        writer.writerow(row)
 
-print("Error \t | Ground-Truth \t | Prediction")
-errs, gt, pred = zip(*sorted(zip(errs, gt, pred), reverse=True))
-for i in range(len(img_paths)):
-    print(errs[i], "|", gt[i], "| ", pred[i]) # prints ('a', 'b', 'c') | (3, 2, 1)
-
-# plt.hist(errs)
-# plt.show()

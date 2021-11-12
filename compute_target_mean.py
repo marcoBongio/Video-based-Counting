@@ -14,8 +14,8 @@ import scipy.stats as st
 with open("train_all.json", 'r+') as outfile:
     img_paths = json.load(outfile)
 
-with open("test.json", 'r+') as outfile:
-    img_paths.extend(json.load(outfile))
+"""with open("test.json", 'r+') as outfile:
+    img_paths.extend(json.load(outfile))"""
 
 data_loader = torch.utils.data.DataLoader(dataset.listDataset(img_paths, shuffle=False,
                                                               batch_size=1,
@@ -41,7 +41,7 @@ mean = np.mean(gt)
 var = np.var(gt)
 std = np.sqrt(var)
 
-conf_int = st.t.interval(0.95, len(gt)-1, loc=mean, scale=st.sem(gt))
+conf_int = st.t.interval(0.95, len(gt) - 1, loc=mean, scale=st.sem(gt))
 
 print("Mean = " + str(mean))
 print("Standard deviation = " + str(std))
