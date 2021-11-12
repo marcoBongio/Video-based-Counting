@@ -9,7 +9,7 @@ from variables import PATCH_SIZE_PF, HEIGHT, WIDTH
 def load_data(img_path, train=True):
     img_folder = os.path.dirname(img_path)
     img_name = os.path.basename(img_path)
-    # print(img_name)
+    #print(img_path)
     index = int(img_name.split('.')[0])
 
     prev_index = int(max(1, index - 5))
@@ -34,20 +34,20 @@ def load_data(img_path, train=True):
     target = np.asarray(gt_file['density'])
     gt_file.close()
     target = cv2.resize(target, (int(target.shape[1] / PATCH_SIZE_PF), int(target.shape[0] / PATCH_SIZE_PF)),
-                        interpolation=cv2.INTER_CUBIC) * 64
+                        interpolation=cv2.INTER_CUBIC) * (PATCH_SIZE_PF ** 2)
     #print(np.sum(target))
     prev_gt_file = h5py.File(prev_gt_path)
     prev_target = np.asarray(prev_gt_file['density'])
     prev_gt_file.close()
     prev_target = cv2.resize(prev_target,
                              (int(prev_target.shape[1] / PATCH_SIZE_PF), int(prev_target.shape[0] / PATCH_SIZE_PF)),
-                             interpolation=cv2.INTER_CUBIC) * 64
+                             interpolation=cv2.INTER_CUBIC) * (PATCH_SIZE_PF ** 2)
     #print(np.sum(prev_target))
     post_gt_file = h5py.File(post_gt_path)
     post_target = np.asarray(post_gt_file['density'])
     post_gt_file.close()
     post_target = cv2.resize(post_target,
                              (int(post_target.shape[1] / PATCH_SIZE_PF), int(post_target.shape[0] / PATCH_SIZE_PF)),
-                             interpolation=cv2.INTER_CUBIC) * 64
+                             interpolation=cv2.INTER_CUBIC) * (PATCH_SIZE_PF ** 2)
     #print(np.sum(post_target))
     return prev_img, img, post_img, prev_target, target, post_target

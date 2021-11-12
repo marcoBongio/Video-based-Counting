@@ -32,8 +32,8 @@ def main():
     best_prec1 = 1e6
 
     args = parser.parse_args()
-    args.lr = 1e-5
-    args.batch_size = 1
+    args.lr = 1e-6
+    args.batch_size = 2
     args.momentum = 0.95
     args.decay = 1e-4
     args.start_epoch = 0
@@ -49,7 +49,7 @@ def main():
     torch.cuda.manual_seed(args.seed)
     # torch.autograd.detect_anomaly()
 
-    model = CANNet2s(load_weights=False)
+    model = CANNet2s(load_weights=False, batch_size=args.batch_size)
 
     model = model.cuda()
 
@@ -82,13 +82,12 @@ def train(train_list, model, criterion, optimizer, epoch):
         dataset.listDataset(train_list,
                             shuffle=True,
                             transform=transforms.Compose([
-                                transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                                            std=[0.229, 0.224, 0.225]),
+                                transforms.ToTensor(), transforms.Normalize(mean=[0.4846, 0.4558, 0.4324],
+                                                                            std=[0.2181, 0.2136, 0.2074]),
                             ]),
                             train=True,
-                            batch_size=args.batch_size,
                             num_workers=args.workers),
-        batch_size=args.batch_size)
+                            batch_size=args.batch_size)
     print('epoch %d, processed %d samples, lr %.10f' % (epoch, epoch * len(train_loader.dataset), args.lr))
 
     model.train()
@@ -188,20 +187,7 @@ def train(train_list, model, criterion, optimizer, epoch):
             post_flow[0, 7, :-1, :], (0, 0, 1, 0)) + F.pad(post_flow[0, 8, :-1, :-1], (1, 0, 1, 0)) + post_flow[0, 9, :,
                                                                                                       :] * mask_boundry
 
-        """if i % args.print_freq == 0:
-            print("\nTarget = " + str(torch.sum(target)))
-            overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
-            pred_sum = overall.sum()
-            print("Pred = " + str(pred_sum))
-            print("Reconstruction from prev = " + str(torch.sum(reconstruction_from_prev)))
-            print("Reconstruction from post = " + str(torch.sum(reconstruction_from_post)))
-            print("Reconstruction from prev inverse = " + str(torch.sum(reconstruction_from_prev_inverse)))
-            print("Reconstruction from post inverse = " + str(torch.sum(reconstruction_from_post_inverse)))
-            print("Prev Target = " + str(torch.sum(prev_target)))
-            print("Prev Reconstruction from prev = " + str(torch.sum(reconstruction_from_prev)))
-            print("Post Target = " + str(torch.sum(post_target)))
-            print("Post Reconstruction from post = " + str(torch.sum(reconstruction_from_prev)) + "\n")
-"""
+
         loss_prev_flow = criterion(reconstruction_from_prev, target)
         loss_post_flow = criterion(reconstruction_from_post, target)
         loss_prev_flow_inverse = criterion(reconstruction_from_prev_inverse, target)
@@ -235,7 +221,20 @@ def train(train_list, model, criterion, optimizer, epoch):
                                                                                  :-1]) + criterion(
             post_flow[0, 7, :-1, :], post_flow_inverse[0, 1, 1:, :]) + criterion(post_flow[0, 8, :-1, :-1],
                                                                                  post_flow_inverse[0, 0, 1:, 1:])
-        """if i % args.print_freq == 0:
+        if i % args.print_freq == 0:
+            print("\nTarget = " + str(torch.sum(target)))
+            overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
+            pred_sum = overall.sum()
+            print("Pred = " + str(pred_sum))
+            print("Reconstruction from prev = " + str(torch.sum(reconstruction_from_prev)))
+            print("Reconstruction from post = " + str(torch.sum(reconstruction_from_post)))
+            print("Reconstruction from prev inverse = " + str(torch.sum(reconstruction_from_prev_inverse)))
+            print("Reconstruction from post inverse = " + str(torch.sum(reconstruction_from_post_inverse)))
+            print("Prev Target = " + str(torch.sum(prev_target)))
+            print("Prev Reconstruction from prev = " + str(torch.sum(reconstruction_from_prev)))
+            print("Post Target = " + str(torch.sum(post_target)))
+            print("Post Reconstruction from post = " + str(torch.sum(reconstruction_from_prev)) + "\n")
+
             print("loss_prev_flow = " + str(loss_prev_flow))
             print("loss_post_flow = " + str(loss_post_flow))
             print("loss_prev_flow_inverse = " + str(loss_prev_flow_inverse))
@@ -243,7 +242,7 @@ def train(train_list, model, criterion, optimizer, epoch):
             print("loss_prev = " + str(loss_prev))
             print("loss_post = " + str(loss_post))
             print("loss_prev_consistency = " + str(loss_prev_consistency))
-            print("loss_post_consistency = " + str(loss_post_consistency))"""
+            print("loss_post_consistency = " + str(loss_post_consistency))
 
         loss = loss_prev_flow + loss_post_flow + loss_prev_flow_inverse + loss_post_flow_inverse + loss_prev + loss_post + loss_prev_consistency + loss_post_consistency
 
@@ -271,10 +270,10 @@ def validate(val_list, model, criterion):
         dataset.listDataset(val_list,
                             shuffle=False,
                             transform=transforms.Compose([
-                                transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                                            std=[0.229, 0.224, 0.225]),
+                                transforms.ToTensor(), transforms.Normalize(mean=[0.4846, 0.4558, 0.4324],
+                                                                            std=[0.2181, 0.2136, 0.2074]),
                             ]), train=False),
-        batch_size=1)
+        batch_size=args.batch_size)
 
     model.eval()
 

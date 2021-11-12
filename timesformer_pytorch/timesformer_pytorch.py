@@ -1,13 +1,35 @@
 import torch
+from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+from timm.models import register_model
 from torch import nn, einsum
 import torch.nn.functional as F
 from einops import rearrange, repeat
 
+from TimeSformer.timesformer.models.vit import _cfg
 from timesformer_pytorch.rotary import apply_rot_emb, AxialRotaryEmbedding, RotaryEmbedding
-
 
 # helpers
 from variables import DIM_TS
+
+
+def _cfg(url='', **kwargs):
+    return {
+        'url': url,
+        'num_classes': 1000, 'input_size': (3, 224, 224), 'pool_size': None,
+        'crop_pct': .9, 'interpolation': 'bicubic',
+        'mean': IMAGENET_DEFAULT_MEAN, 'std': IMAGENET_DEFAULT_STD,
+        'first_conv': 'patch_embed.proj', 'classifier': 'head',
+        **kwargs
+    }
+
+
+default_cfgs = {
+    'vit_base_patch16_224': _cfg(
+        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_base_p16_224'
+            '-80ecf9dd.pth',
+        mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5),
+    ),
+}
 
 
 def exists(val):
@@ -135,10 +157,10 @@ class Attention(nn.Module):
             q_, k_ = apply_rot_emb(q_, k_, rot_emb)
 
         # expand flows token keys and values across time or space and concat
-        #print(q_.shape)
-        #print(flows_k.shape)
+        # print(q_.shape)
+        # print(flows_k.shape)
         r = q_.shape[0] // flows_k.shape[0]
-        #print(r)
+        # print(r)
         flows_k, flows_v = map(lambda t: repeat(t, 'b (f) d -> (b r) (f) d', r=r), (flows_k, flows_v))
 
         k_ = torch.cat((flows_k, k_), dim=1)
@@ -155,7 +177,7 @@ class Attention(nn.Module):
 
         # merge back the heads
         out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
-        #print("OUT = " + str(out.shape))
+        # print("OUT = " + str(out.shape))
         # combine heads out
         return self.to_out(out)
 
@@ -168,7 +190,7 @@ class TimeSformer(nn.Module):
             *,
             dim,
             num_frames,
-            #num_classes,
+            # num_classes,
             image_size=224,
             patch_size=16,
             channels=3,
@@ -191,9 +213,9 @@ class TimeSformer(nn.Module):
 
         self.heads = heads
         self.patch_size = patch_size
-        self.to_patch_embedding = nn.Linear(patch_dim, dim)
+        self.patch_embed = nn.Linear(patch_dim, dim)
         self.flows_tokens = nn.Parameter(torch.randn(10, dim))
-        #print(self.flows_tokens.shape)
+        # print(self.flows_tokens.shape)
 
         self.use_rotary_emb = rotary_emb
         if rotary_emb:
@@ -222,7 +244,7 @@ class TimeSformer(nn.Module):
 
     def forward(self, video, mask=None):
         b, f, _, h, w, *_, device, p = *video.shape, video.device, self.patch_size
-        #print(*video.shape)
+        # print(*video.shape)
 
         assert h % p == 0 and w % p == 0, f'height {h} and width {w} of video must be divisible by the patch size {p}'
 
@@ -234,7 +256,7 @@ class TimeSformer(nn.Module):
         # video to patch embeddings
 
         video = rearrange(video, 'b f c (h p1) (w p2) -> b (f h w) (p1 p2 c)', p1=p, p2=p)
-        tokens = self.to_patch_embedding(video)
+        tokens = self.patch_embed(video)
 
         # add flows tokens
 
@@ -272,8 +294,11 @@ class TimeSformer(nn.Module):
             x = ff(x) + x
 
         flows_tokens = x[:, :10]
-        #print(self.to_out(flows_tokens))
+
         out = self.to_out(flows_tokens)
 
-        out = rearrange(out, 'b f (h w) -> b f h w', b=1, f=10, h=DIM_TS, w=DIM_TS)
+        # out = rearrange(out, 'b f (h w) -> b f h w', b=b, f=10, h=DIM_TS, w=DIM_TS)
+        # print(out.shape)
         return out
+
+
