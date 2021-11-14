@@ -3,6 +3,8 @@ import numpy as np
 import torch
 import shutil
 
+from variables import MODEL_NAME
+
 
 def save_net(fname, net):
     with h5py.File(fname, 'w') as h5f:
@@ -20,4 +22,4 @@ def load_net(fname, net):
 def save_checkpoint(state, is_best, filename='models/checkpoint.pth.tar'):
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, 'models/model_best.pth.tar')
+        shutil.copyfile(filename, 'models/' + MODEL_NAME + '.pth.tar')

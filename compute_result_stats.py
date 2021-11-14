@@ -4,14 +4,14 @@ import scipy.stats as st
 from matplotlib import pyplot as plt
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-model_name = "model_best_244_7200_lucidrain"
+from variables import MODEL_NAME
 
 errs = []
 gt = []
 pred = []
 
 # load results of the model
-filename = open("results/" + model_name + ".csv", 'r')
+filename = open("results/" + MODEL_NAME + ".csv", 'r')
 file = csv.DictReader(filename)
 
 for col in file:
@@ -24,7 +24,7 @@ mae = mean_absolute_error(pred, gt)
 rmse = np.sqrt(mean_squared_error(pred, gt))
 
 print('MAE: ', mae)
-print('RMSE: ', rmse)
+print('RMSE: ', rmse, '\n')
 
 # compute stats on the errors
 mean = np.mean(errs)

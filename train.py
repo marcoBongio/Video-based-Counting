@@ -40,7 +40,7 @@ def main():
     args.epochs = 200
     args.workers = 4
     args.seed = int(time.time())
-    args.print_freq = 100
+    args.print_freq = 1000
     with open(args.train_json, 'r') as outfile:
         train_list = json.load(outfile)
     with open(args.val_json, 'r') as outfile:
@@ -60,6 +60,17 @@ def main():
 
     print(model)
 
+    # modify the path of saved checkpoint if necessary
+    try:
+        checkpoint = torch.load("models/" + MODEL_NAME + '.pth.tar', map_location='cpu')
+        model.load_state_dict(checkpoint['state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        print(optimizer)
+        args.start_epoch = checkpoint['epoch']
+        print("Train model " + MODEL_NAME + " from epoch " + str(args.start_epoch) + "...")
+    except:
+        print("Train new model: " + MODEL_NAME + "...")
+
     for epoch in range(args.start_epoch, args.epochs):
         train(train_list, model, criterion, optimizer, epoch)
         prec1 = validate(val_list, model, criterion)
@@ -69,9 +80,9 @@ def main():
         print(' * best MAE {mae:.3f} '
               .format(mae=best_prec1))
         save_checkpoint({
-                'epoch': epoch + 1,
-                'state_dict': model.state_dict(),
-                'optimizer': optimizer.state_dict()
+            'epoch': epoch + 1,
+            'state_dict': model.state_dict(),
+            'optimizer': optimizer.state_dict()
         }, is_best)
 
 
@@ -90,13 +101,7 @@ def train(train_list, model, criterion, optimizer, epoch):
                             train=True,
                             num_workers=args.workers),
         batch_size=args.batch_size)
-    print('epoch %d, processed %d samples, lr %.10f' % (epoch, epoch * len(train_loader.dataset), args.lr))
-
-    # modify the path of saved checkpoint if necessary
-    #checkpoint = torch.load("models/" + MODEL_NAME + '.pth.tar', map_location='cpu')
-    #model.load_state_dict(checkpoint['state_dict'])
-    #optimizer.load_state_dict(checkpoint['optimizer'])
-    #args.start_epoch = checkpoint['epoch']
+    print('epoch %d, processed %d samples, lr %.10f' % (epoch, epoch * len(train_loader.dataset), args.lr)) #cambiare print
 
     model.train()
     end = time.time()
@@ -228,7 +233,7 @@ def train(train_list, model, criterion, optimizer, epoch):
                                                                                  :-1]) + criterion(
             post_flow[0, 7, :-1, :], post_flow_inverse[0, 1, 1:, :]) + criterion(post_flow[0, 8, :-1, :-1],
                                                                                  post_flow_inverse[0, 0, 1:, 1:])
-        if i % args.print_freq == 0:
+        """if i % args.print_freq == 0:
             print("\nTarget = " + str(torch.sum(target)))
             overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
             pred_sum = overall.sum()
@@ -249,7 +254,7 @@ def train(train_list, model, criterion, optimizer, epoch):
             print("loss_prev = " + str(loss_prev))
             print("loss_post = " + str(loss_post))
             print("loss_prev_consistency = " + str(loss_prev_consistency))
-            print("loss_post_consistency = " + str(loss_post_consistency))
+            print("loss_post_consistency = " + str(loss_post_consistency))"""
 
         loss = loss_prev_flow + loss_post_flow + loss_prev_flow_inverse + loss_post_flow_inverse + loss_prev + loss_post + loss_prev_consistency + loss_post_consistency
 
