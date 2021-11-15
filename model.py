@@ -73,7 +73,7 @@ class CANNet2s(nn.Module):
             self.frontend.load_state_dict(pretrained_dict)
 
     def forward(self, x_prev, x):
-        # print(x.shape)
+        #print(x.shape)
         x_prev = self.frontend(x_prev)
         x = self.frontend(x)
         # print(x.shape)

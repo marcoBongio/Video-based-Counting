@@ -12,7 +12,7 @@ import cv2
 from matplotlib import cm
 
 from torchvision import transforms
-from variables import HEIGHT, WIDTH, PATCH_SIZE_PF
+from variables import HEIGHT, WIDTH, PATCH_SIZE_PF, MODEL_NAME
 
 
 def plotDensity(density, plot_path):
@@ -57,7 +57,7 @@ model = CANNet2s()
 
 model = model.cuda()
 
-checkpoint = torch.load('model_best.pth.tar', map_location='cpu')
+checkpoint = torch.load('models/model_best_' + MODEL_NAME + '.pth.tar', map_location='cpu')
 
 model.load_state_dict(checkpoint['state_dict'])
 

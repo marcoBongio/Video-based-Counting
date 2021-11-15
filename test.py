@@ -40,7 +40,7 @@ model = CANNet2s()
 model = model.cuda()
 
 # modify the path of saved checkpoint if necessary
-checkpoint = torch.load("models/" + MODEL_NAME + '.pth.tar', map_location='cpu')
+checkpoint = torch.load("models/model_best_" + MODEL_NAME + '.pth.tar', map_location='cpu')
 
 model.load_state_dict(checkpoint['state_dict'])
 
@@ -133,7 +133,7 @@ results = zip(errs, gt, pred)
 
 header = ["Error", "GT", "Prediction"]
 
-with open("results/" + MODEL_NAME + ".csv", "w") as f:
+with open("results/model_best_" + MODEL_NAME + ".csv", "w") as f:
     writer = csv.writer(f)
     writer.writerow(header)
     for row in results:

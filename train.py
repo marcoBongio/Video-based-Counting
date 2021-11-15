@@ -28,7 +28,6 @@ parser.add_argument('val_json', metavar='VAL',
 
 def main():
     global args, best_prec1
-
     best_prec1 = 1e6
 
     args = parser.parse_args()
@@ -40,7 +39,7 @@ def main():
     args.epochs = 200
     args.workers = 4
     args.seed = int(time.time())
-    args.print_freq = 1000
+    args.print_freq = 100
     with open(args.train_json, 'r') as outfile:
         train_list = json.load(outfile)
     with open(args.val_json, 'r') as outfile:
@@ -62,14 +61,15 @@ def main():
 
     # modify the path of saved checkpoint if necessary
     try:
-        checkpoint = torch.load("models/" + MODEL_NAME + '.pth.tar', map_location='cpu')
+        checkpoint = torch.load('models/checkpoint_' + MODEL_NAME + '.pth.tar', map_location='cpu')
         model.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         print(optimizer)
         args.start_epoch = checkpoint['epoch']
+        best_prec1 = checkpoint['best_prec'].item()
         print("Train model " + MODEL_NAME + " from epoch " + str(args.start_epoch) + "...")
     except:
-        print("Train new model: " + MODEL_NAME + "...")
+        print("Train model " + MODEL_NAME + "...")
 
     for epoch in range(args.start_epoch, args.epochs):
         train(train_list, model, criterion, optimizer, epoch)
@@ -82,7 +82,8 @@ def main():
         save_checkpoint({
             'epoch': epoch + 1,
             'state_dict': model.state_dict(),
-            'optimizer': optimizer.state_dict()
+            'optimizer': optimizer.state_dict(),
+            'best_prec': best_prec1
         }, is_best)
 
 
@@ -233,7 +234,7 @@ def train(train_list, model, criterion, optimizer, epoch):
                                                                                  :-1]) + criterion(
             post_flow[0, 7, :-1, :], post_flow_inverse[0, 1, 1:, :]) + criterion(post_flow[0, 8, :-1, :-1],
                                                                                  post_flow_inverse[0, 0, 1:, 1:])
-        """if i % args.print_freq == 0:
+        if i % args.print_freq == 0:
             print("\nTarget = " + str(torch.sum(target)))
             overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
             pred_sum = overall.sum()
@@ -254,7 +255,7 @@ def train(train_list, model, criterion, optimizer, epoch):
             print("loss_prev = " + str(loss_prev))
             print("loss_post = " + str(loss_post))
             print("loss_prev_consistency = " + str(loss_prev_consistency))
-            print("loss_post_consistency = " + str(loss_post_consistency))"""
+            print("loss_post_consistency = " + str(loss_post_consistency))
 
         loss = loss_prev_flow + loss_post_flow + loss_prev_flow_inverse + loss_post_flow_inverse + loss_prev + loss_post + loss_prev_consistency + loss_post_consistency
 
