@@ -12,6 +12,9 @@ from model import CANNet2s
 from train import parser
 from variables import HEIGHT, WIDTH, MODEL_NAME
 
+import os
+os.environ["PATH"] += os.pathsep + 'C:/Program Files/Graphviz/bin/'
+
 transform = transforms.Compose([
     transforms.ToTensor(), transforms.Normalize(mean=[0.4846, 0.4558, 0.4324],
                                                 std=[0.2181, 0.2136, 0.2074]),

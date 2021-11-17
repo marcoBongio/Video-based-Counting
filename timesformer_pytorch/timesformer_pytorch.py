@@ -6,7 +6,7 @@ from torch import nn, einsum
 
 from timesformer_pytorch.rotary import apply_rot_emb, AxialRotaryEmbedding, RotaryEmbedding
 # helpers
-from variables import DIM_TS
+from variables import HEIGHT_TS, WIDTH_TS
 
 
 def exists(val):
@@ -167,7 +167,8 @@ class TimeSformer(nn.Module):
             dim,
             num_frames,
             # num_classes,
-            image_size=224,
+            height=224,
+            width=224,
             patch_size=16,
             channels=3,
             depth=12,
@@ -179,10 +180,11 @@ class TimeSformer(nn.Module):
             shift_tokens=False
     ):
         super().__init__()
-        assert image_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
+        assert height % patch_size == 0, 'Image height must be divisible by the patch size.'
+        assert width % patch_size == 0, 'Image width must be divisible by the patch size.'
 
         # Compute N = HW/P^2
-        num_patches = (image_size // patch_size) ** 2
+        num_patches = (height * width) // (patch_size ** 2)
         num_positions = num_frames * num_patches
         # Compute D = C * P^2
         patch_dim = channels * patch_size ** 2
@@ -215,7 +217,7 @@ class TimeSformer(nn.Module):
 
         self.to_out = nn.Sequential(
             nn.LayerNorm(dim),
-            nn.Linear(dim, DIM_TS ** 2)
+            nn.Linear(dim, WIDTH_TS * HEIGHT_TS)
         )
 
     def forward(self, video, mask=None):

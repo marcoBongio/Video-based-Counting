@@ -45,7 +45,7 @@ conf_int = st.t.interval(0.95, len(gt) - 1, loc=mean, scale=st.sem(gt))
 
 print("Mean = " + str(mean))
 print("Standard deviation = " + str(std))
-print("Confidence Interval = " + str(conf_int))
+# print("Confidence Interval = " + str(conf_int))
 print("Minimum = " + str(np.min(gt)))
 print("Maximum = " + str(np.max(gt)))
 

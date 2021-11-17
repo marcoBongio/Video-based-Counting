@@ -16,7 +16,7 @@ import cv2
 import dataset
 import time
 
-from variables import WIDTH, HEIGHT, MODEL_NAME
+from variables import WIDTH, HEIGHT, MODEL_NAME, NUM_FRAMES
 
 parser = argparse.ArgumentParser(description='PyTorch CANNet2s')
 
@@ -32,7 +32,7 @@ def main():
 
     args = parser.parse_args()
     args.lr = 1e-6
-    args.batch_size = 2
+    args.batch_size = 1
     args.momentum = 0.95
     args.decay = 1e-4
     args.start_epoch = 0
@@ -67,7 +67,8 @@ def main():
         print(optimizer)
         args.start_epoch = checkpoint['epoch']
         best_prec1 = checkpoint['best_prec'].item()
-        print("Train model " + MODEL_NAME + " from epoch " + str(args.start_epoch) + "...")
+        print("Train model " + MODEL_NAME + " from epoch " + str(args.start_epoch) + " with best prec = " + str(
+            best_prec1) + "...")
     except:
         print("Train model " + MODEL_NAME + "...")
 
@@ -102,29 +103,31 @@ def train(train_list, model, criterion, optimizer, epoch):
                             train=True,
                             num_workers=args.workers),
         batch_size=args.batch_size)
-    print('epoch %d, processed %d samples, lr %.10f' % (epoch, epoch * len(train_loader.dataset), args.lr)) #cambiare print
+    print('epoch %d, processed %d samples, lr %.10f' % (
+    epoch, epoch * len(train_loader.dataset), args.lr))  # cambiare print
 
     model.train()
     end = time.time()
 
-    for i, (prev_img, img, post_img, prev_target, target, post_target) in enumerate(train_loader):
+    for i, (prev_imgs, img, post_imgs, prev_target, target, post_target) in enumerate(train_loader):
 
         data_time.update(time.time() - end)
 
-        prev_img = prev_img.cuda()
-        prev_img = Variable(prev_img)
+        prev_imgs.append(img)
+        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
+        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
+        prev_imgs = torch.stack(prev_imgs)
 
-        img = img.cuda()
-        img = Variable(img)
+        post_imgs.insert(0, img)
+        post_imgs = [_post_img.cuda() for _post_img in post_imgs]
+        post_imgs = [Variable(_post_img) for _post_img in post_imgs]
+        post_imgs = torch.stack(post_imgs)
 
-        post_img = post_img.cuda()
-        post_img = Variable(post_img)
+        prev_flow = model(prev_imgs)
+        post_flow = model(post_imgs)
 
-        prev_flow = model(prev_img, img)
-        post_flow = model(img, post_img)
-
-        prev_flow_inverse = model(img, prev_img)
-        post_flow_inverse = model(post_img, img)
+        prev_flow_inverse = model(prev_imgs, inverse=True)
+        post_flow_inverse = model(post_imgs, inverse=True)
 
         target = target.type(torch.FloatTensor)[0].cuda()
         target = Variable(target)
@@ -292,16 +295,15 @@ def validate(val_list, model, criterion):
 
     mae = 0
 
-    for i, (prev_img, img, post_img, _, target, _) in enumerate(val_loader):
+    for i, (prev_imgs, img, post_imgs, _, target, _) in enumerate(val_loader):
         # only use previous frame in inference time, as in real-time application scenario, future frame is not available
-        prev_img = prev_img.cuda()
-        prev_img = Variable(prev_img)
+        prev_imgs.append(img)
+        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
+        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
+        prev_imgs = torch.stack(prev_imgs)
 
-        img = img.cuda()
-        img = Variable(img)
-
-        prev_flow = model(prev_img, img)
-        prev_flow_inverse = model(img, prev_img)
+        prev_flow = model(prev_imgs)
+        prev_flow_inverse = model(prev_imgs, inverse=True)
 
         target = target.type(torch.FloatTensor)[0].cuda()
         target = Variable(target)

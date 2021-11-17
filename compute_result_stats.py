@@ -35,7 +35,7 @@ conf_int = st.t.interval(0.95, len(errs) - 1, loc=mean, scale=st.sem(errs))
 
 print("Error Mean = " + str(mean))
 print("Error Standard deviation = " + str(std))
-print("Error Confidence Interval(95%) = " + str(conf_int))
+#print("Error Confidence Interval(95%) = " + str(conf_int))
 print("Minimum = " + str(np.min(errs)))
 print("Maximum = " + str(np.max(errs)) + "\n")
 
@@ -52,7 +52,7 @@ conf_int = st.t.interval(0.95, len(pred) - 1, loc=mean, scale=st.sem(pred))
 
 print("Prediction Mean = " + str(mean))
 print("Prediction Standard deviation = " + str(std))
-print("Prediction Confidence Interval(95%) = " + str(conf_int))
+#print("Prediction Confidence Interval(95%) = " + str(conf_int))
 print("Minimum = " + str(np.min(pred)))
 print("Maximum = " + str(np.max(pred)) + "\n")
 
