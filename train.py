@@ -1,3 +1,4 @@
+import gc
 import os
 from model import CANNet2s
 from utils import save_checkpoint
@@ -31,15 +32,15 @@ def main():
     best_prec1 = 1e6
 
     args = parser.parse_args()
-    args.lr = 1e-6
+    args.lr = 1e-4
     args.batch_size = 1
     args.momentum = 0.95
-    args.decay = 1e-4
+    args.decay = 5e-4
     args.start_epoch = 0
     args.epochs = 200
     args.workers = 4
     args.seed = int(time.time())
-    args.print_freq = 100
+    args.print_freq = 150
     with open(args.train_json, 'r') as outfile:
         train_list = json.load(outfile)
     with open(args.val_json, 'r') as outfile:
@@ -104,7 +105,7 @@ def train(train_list, model, criterion, optimizer, epoch):
                             num_workers=args.workers),
         batch_size=args.batch_size)
     print('epoch %d, processed %d samples, lr %.10f' % (
-    epoch, epoch * len(train_loader.dataset), args.lr))  # cambiare print
+        epoch, epoch * len(train_loader.dataset), args.lr))  # cambiare print
 
     model.train()
     end = time.time()
@@ -118,16 +119,22 @@ def train(train_list, model, criterion, optimizer, epoch):
         prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
         prev_imgs = torch.stack(prev_imgs)
 
+        prev_flow = model(prev_imgs)
+        prev_flow_inverse = model(prev_imgs, inverse=True)
+
+        del prev_imgs
+        torch.cuda.empty_cache()
+
         post_imgs.insert(0, img)
         post_imgs = [_post_img.cuda() for _post_img in post_imgs]
         post_imgs = [Variable(_post_img) for _post_img in post_imgs]
         post_imgs = torch.stack(post_imgs)
 
-        prev_flow = model(prev_imgs)
         post_flow = model(post_imgs)
-
-        prev_flow_inverse = model(prev_imgs, inverse=True)
         post_flow_inverse = model(post_imgs, inverse=True)
+
+        del post_imgs
+        torch.cuda.empty_cache()
 
         target = target.type(torch.FloatTensor)[0].cuda()
         target = Variable(target)
@@ -264,6 +271,17 @@ def train(train_list, model, criterion, optimizer, epoch):
 
         losses.update(loss.item(), img.size(0))
         optimizer.zero_grad()
+
+        del prev_flow, post_flow, prev_flow_inverse, post_flow_inverse, loss_prev_flow, \
+            loss_post_flow, loss_prev_flow_inverse, loss_post_flow_inverse, loss_prev, loss_post, loss_prev_consistency, \
+            loss_post_consistency, mask_boundry, post_density_reconstruction, post_density_reconstruction_inverse, \
+            post_reconstruction_from_post, post_target, prev_density_reconstruction, prev_density_reconstruction_inverse, \
+            prev_reconstruction_from_prev, prev_target, reconstruction_from_post, reconstruction_from_post_inverse, \
+            reconstruction_from_prev, reconstruction_from_prev_inverse, target
+
+        gc.collect()
+        torch.cuda.empty_cache()
+
         loss.backward()
         optimizer.step()
 

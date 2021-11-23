@@ -66,10 +66,16 @@ model.eval()
 pred = []
 gt = []
 
+try:
+    os.mkdir(os.path.dirname('plot/'))
+    print("Done")
+except:
+    pass
+
 with torch.no_grad():
     for i in range(len(img_paths)):
         img_path = img_paths[i]
-
+        print(img_path)
         img_folder = os.path.dirname(img_path)
         img_name = os.path.basename(img_path)
         index = int(img_name.split('.')[0])
@@ -128,35 +134,35 @@ with torch.no_grad():
         print(base_name)
         folder_name = os.path.dirname(img_path).split('/')[-1]
         print(folder_name)
-        gt_path = os.path.join(output_folder, base_name).replace('.jpg', '_' + folder_name + '_gt.jpg')
+        gt_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_gt.jpg')
         print(gt_path)
-        density_path = os.path.join(output_folder, base_name).replace('.jpg', '_' + folder_name + '_pred.jpg')
-        flow_1_path = os.path.join(output_folder, base_name).replace('.jpg', '_' + folder_name + '_flow_1.jpg')
-        flow_2_path = os.path.join(output_folder, base_name).replace('.jpg', '_' + folder_name + '_flow_2.jpg')
-        flow_3_path = os.path.join(output_folder, base_name).replace('.jpg', '_' + folder_name + '_flow_3.jpg')
-        flow_4_path = os.path.join(output_folder, base_name).replace('.jpg', '_' + folder_name + '_flow_4.jpg')
-        flow_5_path = os.path.join(output_folder, base_name).replace('.jpg', '_' + folder_name + '_flow_5.jpg')
-        flow_6_path = os.path.join(output_folder, base_name).replace('.jpg', '_' + folder_name + '_flow_6.jpg')
-        flow_7_path = os.path.join(output_folder, base_name).replace('.jpg', '_' + folder_name + '_flow_7.jpg')
-        flow_8_path = os.path.join(output_folder, base_name).replace('.jpg', '_' + folder_name + '_flow_8.jpg')
-        flow_9_path = os.path.join(output_folder, base_name).replace('.jpg', '_' + folder_name + '_flow_9.jpg')
+        density_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_pred.jpg')
+        flow_1_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_1.jpg')
+        flow_2_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_2.jpg')
+        flow_3_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_3.jpg')
+        flow_4_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_4.jpg')
+        flow_5_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_5.jpg')
+        flow_6_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_6.jpg')
+        flow_7_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_7.jpg')
+        flow_8_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_8.jpg')
+        flow_9_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_9.jpg')
 
         pred = cv2.resize(overall, (overall.shape[1] * PATCH_SIZE_PF, overall.shape[0] * PATCH_SIZE_PF),
-                          interpolation=cv2.INTER_CUBIC) / 64
+                          interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
         prev_flow = prev_flow.data.cpu().numpy()[0]
-        flow_1 = cv2.resize(prev_flow[0], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ^ 2)
-        flow_2 = cv2.resize(prev_flow[1], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ^ 2)
-        flow_3 = cv2.resize(prev_flow[2], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ^ 2)
-        flow_4 = cv2.resize(prev_flow[3], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ^ 2)
-        flow_5 = cv2.resize(prev_flow[4], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ^ 2)
-        flow_6 = cv2.resize(prev_flow[5], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ^ 2)
-        flow_7 = cv2.resize(prev_flow[6], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ^ 2)
-        flow_8 = cv2.resize(prev_flow[7], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ^ 2)
-        flow_9 = cv2.resize(prev_flow[8], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ^ 2)
+        """flow_1 = cv2.resize(prev_flow[0], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
+        flow_2 = cv2.resize(prev_flow[1], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
+        flow_3 = cv2.resize(prev_flow[2], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
+        flow_4 = cv2.resize(prev_flow[3], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
+        flow_5 = cv2.resize(prev_flow[4], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
+        flow_6 = cv2.resize(prev_flow[5], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
+        flow_7 = cv2.resize(prev_flow[6], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
+        flow_8 = cv2.resize(prev_flow[7], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
+        flow_9 = cv2.resize(prev_flow[8], (WIDTH, HEIGHT), interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)"""
 
         plotDensity(pred, density_path)
         plotDensity(target, gt_path)
-        plotDensity(flow_1, flow_1_path)
+        """plotDensity(flow_1, flow_1_path)
         plotDensity(flow_2, flow_2_path)
         plotDensity(flow_3, flow_3_path)
         plotDensity(flow_4, flow_4_path)
@@ -165,3 +171,4 @@ with torch.no_grad():
         plotDensity(flow_7, flow_7_path)
         plotDensity(flow_8, flow_8_path)
         plotDensity(flow_9, flow_9_path)
+        """

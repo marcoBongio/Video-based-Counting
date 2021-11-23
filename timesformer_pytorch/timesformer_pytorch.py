@@ -272,9 +272,10 @@ class TimeSformer(nn.Module):
             x = ff(x) + x
 
         flows_tokens = x[:, :10]
-
         out = self.to_out(flows_tokens)
 
-        # out = rearrange(out, 'b f (h w) -> b f h w', b=b, f=10, h=DIM_TS, w=DIM_TS)
+        del tokens, video, x, flows_tokens
+        torch.cuda.empty_cache()
+        # out = rearrange(out, 'b f (h w) -> b f h w', b=b, f=10, h=HEIGHT_TS, w=WIDTH_TS)
         # print(out.shape)
         return out

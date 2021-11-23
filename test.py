@@ -24,8 +24,6 @@ from torchvision import transforms
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from variables import HEIGHT, WIDTH, MODEL_NAME
 
-from GAME import GAME_metric
-
 transform = transforms.Compose([
     transforms.ToTensor(), transforms.Normalize(mean=[0.4846, 0.4558, 0.4324],
                                                 std=[0.2181, 0.2136, 0.2074]),
@@ -55,7 +53,7 @@ game = 0
 
 with torch.no_grad():
     for i in range(len(img_paths)):
-        if i % 250 == 0:
+        if i % 150 == 0:
             print(str(i) + "/" + str(len(img_paths)))
 
         img_path = img_paths[i]
@@ -124,9 +122,9 @@ with torch.no_grad():
         target = cv2.resize(target, (int(target.shape[1] / PATCH_SIZE_PF), int(target.shape[0] / PATCH_SIZE_PF)),
                             interpolation=cv2.INTER_CUBIC) * (PATCH_SIZE_PF ** 2)
 
-        for i in range(target.shape[0]):
+        for k in range(target.shape[0]):
             for j in range(target.shape[1]):
-                game += abs(overall[i][j] - target[i][j])
+                game += abs(overall[k][j] - target[k][j])
 
 mae = mean_absolute_error(pred, gt)
 rmse = np.sqrt(mean_squared_error(pred, gt))

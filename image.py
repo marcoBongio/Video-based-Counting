@@ -50,7 +50,7 @@ def load_data(img_path, train=True):
     last_prev_img_path = os.path.join(img_folder, '%03d.jpg' % (last_prev_index))
     # print(last_prev_img_path)
     prev_gt_path = last_prev_img_path.replace('.jpg', '_resize.h5')
-
+    # print(prev_gt_path)
     prev_gt_file = h5py.File(prev_gt_path)
     prev_target = np.asarray(prev_gt_file['density'])
     prev_gt_file.close()
@@ -63,7 +63,7 @@ def load_data(img_path, train=True):
     last_post_img_path = os.path.join(img_folder, '%03d.jpg' % (last_post_index))
     # print(last_post_img_path)
     post_gt_path = last_post_img_path.replace('.jpg', '_resize.h5')
-
+    # print(post_gt_path)
     post_gt_file = h5py.File(post_gt_path)
     post_target = np.asarray(post_gt_file['density'])
     post_gt_file.close()
