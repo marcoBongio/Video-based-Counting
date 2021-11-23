@@ -1,17 +1,12 @@
 import json
 
-import cv2
 import torch
-from torch.autograd import Variable
 from torchvision.transforms import transforms
 
 import dataset
 
 with open("train_all.json", 'r+') as outfile:
     list = json.load(outfile)
-
-"""with open("test.json", 'r+') as outfile:
-    list.extend(json.load(outfile))"""
 
 data_loader = torch.utils.data.DataLoader(dataset.listDataset(list, shuffle=False,
                                                               batch_size=1,

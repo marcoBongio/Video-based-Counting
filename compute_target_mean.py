@@ -1,15 +1,12 @@
 import json
 
-import cv2
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from torch.autograd import Variable
 from torchvision.transforms import transforms
-import matplotlib.pyplot as plt
-import dataset
 
-import scipy.stats as st
+import dataset
 
 with open("train_all.json", 'r+') as outfile:
     img_paths = json.load(outfile)
@@ -41,11 +38,8 @@ mean = np.mean(gt)
 var = np.var(gt)
 std = np.sqrt(var)
 
-conf_int = st.t.interval(0.95, len(gt) - 1, loc=mean, scale=st.sem(gt))
-
 print("Mean = " + str(mean))
 print("Standard deviation = " + str(std))
-# print("Confidence Interval = " + str(conf_int))
 print("Minimum = " + str(np.min(gt)))
 print("Maximum = " + str(np.max(gt)))
 

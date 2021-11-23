@@ -1,23 +1,18 @@
-import gc
-import os
-from model import CANNet2s
-from utils import save_checkpoint
-
-import torch
-from torch import nn
-from torch.autograd import Variable
-from torchvision import datasets, transforms
-import torch.nn.functional as F
-from torchinfo import summary
-
-import numpy as np
 import argparse
+import gc
 import json
-import cv2
-import dataset
 import time
 
-from variables import WIDTH, HEIGHT, MODEL_NAME, NUM_FRAMES
+import torch
+import torch.nn.functional as F
+from torch import nn
+from torch.autograd import Variable
+from torchvision import transforms
+
+import dataset
+from model import CANNet2s
+from utils import save_checkpoint
+from variables import MODEL_NAME
 
 parser = argparse.ArgumentParser(description='PyTorch CANNet2s')
 
@@ -47,7 +42,6 @@ def main():
         val_list = json.load(outfile)
 
     torch.cuda.manual_seed(args.seed)
-    # torch.autograd.detect_anomaly()
 
     model = CANNet2s(load_weights=False, batch_size=args.batch_size)
 
@@ -244,7 +238,7 @@ def train(train_list, model, criterion, optimizer, epoch):
                                                                                  :-1]) + criterion(
             post_flow[0, 7, :-1, :], post_flow_inverse[0, 1, 1:, :]) + criterion(post_flow[0, 8, :-1, :-1],
                                                                                  post_flow_inverse[0, 0, 1:, 1:])
-        if i % args.print_freq == 0:
+        """if i % args.print_freq == 0:
             print("\nTarget = " + str(torch.sum(target)))
             overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
             pred_sum = overall.sum()
@@ -265,7 +259,7 @@ def train(train_list, model, criterion, optimizer, epoch):
             print("loss_prev = " + str(loss_prev))
             print("loss_post = " + str(loss_post))
             print("loss_prev_consistency = " + str(loss_prev_consistency))
-            print("loss_post_consistency = " + str(loss_post_consistency))
+            print("loss_post_consistency = " + str(loss_post_consistency))"""
 
         loss = loss_prev_flow + loss_post_flow + loss_prev_flow_inverse + loss_post_flow_inverse + loss_prev + loss_post + loss_prev_consistency + loss_post_consistency
 

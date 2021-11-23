@@ -166,7 +166,7 @@ class TimeSformer(nn.Module):
             *,
             dim,
             num_frames,
-            # num_classes,
+            num_locations,
             height=224,
             width=224,
             patch_size=16,
@@ -217,7 +217,7 @@ class TimeSformer(nn.Module):
 
         self.to_out = nn.Sequential(
             nn.LayerNorm(dim),
-            nn.Linear(dim, WIDTH_TS * HEIGHT_TS)
+            nn.Linear(dim, num_locations)
         )
 
     def forward(self, video, mask=None):
@@ -276,6 +276,5 @@ class TimeSformer(nn.Module):
 
         del tokens, video, x, flows_tokens
         torch.cuda.empty_cache()
-        # out = rearrange(out, 'b f (h w) -> b f h w', b=b, f=10, h=HEIGHT_TS, w=WIDTH_TS)
-        # print(out.shape)
+
         return out
