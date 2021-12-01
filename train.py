@@ -1,24 +1,23 @@
+from matplotlib import pyplot as plt, cm
+
 import argparse
-import gc
 import json
-import os
 import time
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
-from matplotlib import cm
+from matplotlib import pyplot as plt, cm
 from torch import nn
 from torch.autograd import Variable
 from torchinfo import summary
 from torchvision import transforms
 
 import dataset
-from model import PFTS
+from model import CANNet2s
 from utils import save_checkpoint
-from variables import MODEL_NAME, IN_CHANS, NUM_FRAMES, WIDTH_TS, HEIGHT_TS, PATCH_SIZE_PF
+from variables import WIDTH, HEIGHT, MODEL_NAME, NUM_FRAMES, PATCH_SIZE_PF, MEAN, STD
 
 parser = argparse.ArgumentParser(description='PyTorch CANNet2s')
 
@@ -50,10 +49,10 @@ def main():
     best_prec1 = 1e6
 
     args = parser.parse_args()
-    args.lr = 1e-6
+    args.lr = 1e-5
     args.batch_size = 1
     args.momentum = 0.95
-    args.decay = 1e-4
+    args.decay = 5 * 1e-4
     args.start_epoch = 0
     args.epochs = 200
     args.workers = 4
@@ -65,8 +64,9 @@ def main():
         val_list = json.load(outfile)
 
     torch.cuda.manual_seed(args.seed)
+    # torch.autograd.detect_anomaly()
 
-    model = PFTS(load_weights=False, batch_size=args.batch_size)
+    model = CANNet2s(load_weights=False, batch_size=args.batch_size)
 
     model = model.cuda()
 
@@ -75,7 +75,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), args.lr,
                                  weight_decay=args.decay)
 
-    summary(model, input_size=(args.batch_size, NUM_FRAMES, IN_CHANS, HEIGHT_TS, WIDTH_TS))
+    summary(model, input_size=(args.batch_size, NUM_FRAMES, 3, HEIGHT, WIDTH))
 
     # modify the path of saved checkpoint if necessary
     try:
@@ -85,8 +85,8 @@ def main():
         print(optimizer)
         args.start_epoch = checkpoint['epoch']
         best_prec1 = checkpoint['best_prec'].item()
-        print("Train model " + MODEL_NAME + " from epoch " + str(args.start_epoch) + " with best prec = " + str(
-            best_prec1) + "...")
+        print(best_prec1)
+        print("Train model " + MODEL_NAME + " from epoch " + str(args.start_epoch) + " with best prec = " + str(best_prec1) + "...")
     except:
         print("Train model " + MODEL_NAME + "...")
 
@@ -96,8 +96,8 @@ def main():
 
         is_best = prec1 < best_prec1
         best_prec1 = min(prec1, best_prec1)
-        print(' * best MAE {mae:.3f} '
-              .format(mae=best_prec1))
+        print(' * best GAME {game:.3f} '
+              .format(game=best_prec1))
         save_checkpoint({
             'epoch': epoch + 1,
             'state_dict': model.state_dict(),
@@ -114,6 +114,10 @@ def train(train_list, model, criterion, optimizer, epoch):
     train_loader = torch.utils.data.DataLoader(
         dataset.listDataset(train_list,
                             shuffle=True,
+                            transform=transforms.Compose([
+                                transforms.ToTensor(), transforms.Normalize(mean=MEAN,
+                                                                            std=STD),
+                            ]),
                             train=True,
                             num_workers=args.workers),
         batch_size=args.batch_size)
@@ -127,7 +131,14 @@ def train(train_list, model, criterion, optimizer, epoch):
 
         data_time.update(time.time() - end)
 
-        prev_imgs = Variable(prev_imgs, requires_grad=True)
+        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
+        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
+        prev_imgs = torch.stack(prev_imgs)
+
+        post_imgs = [_post_img.cuda() for _post_img in post_imgs]
+        post_imgs = [Variable(_post_img) for _post_img in post_imgs]
+        post_imgs = torch.stack(post_imgs)
+
         prev_flow = model(prev_imgs)
         prev_flow_inverse = model(prev_imgs, inverse=True)
 
@@ -249,11 +260,21 @@ def train(train_list, model, criterion, optimizer, epoch):
                                                                                  :-1]) + criterion(
             post_flow[0, 7, :-1, :], post_flow_inverse[0, 1, 1:, :]) + criterion(post_flow[0, 8, :-1, :-1],
                                                                                  post_flow_inverse[0, 0, 1:, 1:])
+
+        loss = loss_prev_flow + loss_post_flow + loss_prev_flow_inverse + loss_post_flow_inverse + loss_prev + loss_post + loss_prev_consistency + loss_post_consistency
+
+        losses.update(loss.item(), img.size(0))
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        batch_time.update(time.time() - end)
+        end = time.time()
+
         if i % args.print_freq == 0:
             print("\nTarget = " + str(torch.sum(target)))
             overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
             pred_sum = overall.sum()
-
             print("Pred = " + str(pred_sum))
             print("Reconstruction from prev = " + str(torch.sum(reconstruction_from_prev)))
             print("Reconstruction from post = " + str(torch.sum(reconstruction_from_post)))
@@ -273,12 +294,6 @@ def train(train_list, model, criterion, optimizer, epoch):
             print("loss_prev_consistency = " + str(loss_prev_consistency))
             print("loss_post_consistency = " + str(loss_post_consistency))
 
-        loss = loss_prev_flow + loss_post_flow + loss_prev_flow_inverse + loss_post_flow_inverse + loss_prev + loss_post + loss_prev_consistency + loss_post_consistency
-        print(img.size(0))
-        losses.update(loss.item(), img.size(0))
-        optimizer.zero_grad()
-
-        if i % args.print_freq == 0:
             pred = cv2.resize(overall, (overall.shape[1] * PATCH_SIZE_PF, overall.shape[0] * PATCH_SIZE_PF),
                               interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
 
@@ -290,6 +305,14 @@ def train(train_list, model, criterion, optimizer, epoch):
             plotDensity(target, axarr, 1)
             plt.show()
 
+            print('Epoch: [{0}][{1}/{2}]\t'
+                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                .format(
+                epoch, i, len(train_loader), batch_time=batch_time,
+                data_time=data_time, loss=losses))
+
         del prev_flow, post_flow, prev_flow_inverse, post_flow_inverse, loss_prev_flow, \
             loss_post_flow, loss_prev_flow_inverse, loss_post_flow_inverse, loss_prev, loss_post, loss_prev_consistency, \
             loss_post_consistency, mask_boundry, post_density_reconstruction, post_density_reconstruction_inverse, \
@@ -299,36 +322,34 @@ def train(train_list, model, criterion, optimizer, epoch):
 
         torch.cuda.empty_cache()
 
-        loss.backward()
-        optimizer.step()
-
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        if i % args.print_freq == 0:
-            print('Epoch: [{0}][{1}/{2}]\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                .format(
-                epoch, i, len(train_loader), batch_time=batch_time,
-                data_time=data_time, loss=losses))
-
 
 def validate(val_list, model, criterion):
+
+    mse_loss = AverageMeter()
+    game_loss = AverageMeter()
     print('begin val')
     val_loader = torch.utils.data.DataLoader(
         dataset.listDataset(val_list,
                             shuffle=False,
+                            transform=transforms.Compose([
+                                transforms.ToTensor(), transforms.Normalize(mean=MEAN,
+                                                                            std=STD),
+                            ]),
                             train=False),
         batch_size=args.batch_size)
 
     model.eval()
 
     mae = 0
+    mse = 0
+    game = 0
 
     for i, (prev_imgs, img, post_imgs, _, target, _) in enumerate(val_loader):
         # only use previous frame in inference time, as in real-time application scenario, future frame is not available
+        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
+        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
+        prev_imgs = torch.stack(prev_imgs)
+
         prev_flow = model(prev_imgs)
         prev_flow_inverse = model(prev_imgs, inverse=True)
 
@@ -361,12 +382,27 @@ def validate(val_list, model, criterion):
             print("PRED = " + str(overall.data.sum()))
             print("GT = " + str(target.sum()))
         mae += abs(overall.data.sum() - target.sum())
+        mse = criterion(overall, target)
+        mse_loss.update(mse.item(), img.size(0))
+
+        game = 0
+        for k in range(target.shape[0]):
+            for j in range(target.shape[1]):
+                game += abs(overall[k][j] - target[k][j])
+        #game_loss.update(game, img.size(0))
+
+        del mse, target, overall, prev_flow, prev_flow_inverse
+        torch.cuda.empty_cache()
 
     mae = mae / len(val_loader)
     print(' * MAE {mae:.3f} '
           .format(mae=mae))
+    print(' * MSE {mse:.3f} '
+          .format(mse=mse_loss.avg))
+    #print(' * GAME {game:.3f} '
+    #      .format(game=game_loss.avg))
 
-    return mae
+    return mse_loss.avg
 
 
 class AverageMeter(object):

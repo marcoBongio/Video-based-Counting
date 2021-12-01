@@ -4,7 +4,7 @@ import PIL.Image as Image
 import numpy as np
 import os
 from image import *
-from model import PFTS
+from model import CANNet2s
 import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -12,7 +12,7 @@ import cv2
 from matplotlib import cm
 
 from torchvision import transforms
-from variables import HEIGHT, WIDTH, PATCH_SIZE_PF, MODEL_NAME
+from variables import HEIGHT, WIDTH, PATCH_SIZE_PF, MODEL_NAME, MEAN, STD
 
 
 def plotDensity(density, plot_path):
@@ -38,6 +38,12 @@ def plotDensity(density, plot_path):
 
     cv2.imwrite(plot_path, new_map * 255)
 
+
+transform = transforms.Compose([
+    transforms.ToTensor(), transforms.Normalize(mean=MEAN,
+                                                std=STD),
+])
+
 # json file contains the test images
 test_json_path = './test.json'
 
@@ -47,7 +53,7 @@ output_folder = 'plot'
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
 
-model = PFTS()
+model = CANNet2s()
 
 model = model.cuda()
 
@@ -66,34 +72,42 @@ except:
     pass
 
 with torch.no_grad():
-    for i in range(len(img_paths)):
+    for i in range(0, len(img_paths), 150):
         if i % 150 == 0:
             print(str(i) + "/" + str(len(img_paths)))
 
         img_path = img_paths[i]
+
         img_folder = os.path.dirname(img_path)
         img_name = os.path.basename(img_path)
         index = int(img_name.split('.')[0])
 
-        img = torch.load(img_path.replace('.jpg', '_features.pt'))
+        img = Image.open(img_path).convert('RGB')
+        img = img.resize((WIDTH, HEIGHT))
 
         gt_path = img_path.replace('.jpg', '_resize.h5')
         gt_file = h5py.File(gt_path)
         target = np.asarray(gt_file['density'])
 
-        prev_imgs = torch.FloatTensor().cuda()
+        prev_imgs = []
 
-        step = 1
+        step = math.ceil(5 / (NUM_FRAMES - 1))
 
-        for i in range(NUM_FRAMES - 1, 0, -step):
-            prev_index = int(max(1, index - i))
-            prev_img_path = os.path.join(img_folder, '%03d.jpg' % prev_index)
-            prev_img = torch.load(prev_img_path.replace('.jpg', '_features.pt'))
+        for s in range(NUM_FRAMES - 1, 0, -step):
+            prev_index = int(max(1, index - s))
+            prev_img_path = os.path.join(img_folder, '%03d.jpg' % (prev_index))
+            # print(prev_img_path)
+            prev_img = Image.open(prev_img_path).convert('RGB')
+            prev_img = prev_img.resize((WIDTH, HEIGHT))
+            prev_imgs.append(prev_img)
 
-            prev_imgs = torch.cat((prev_imgs, prev_img), 0)
+        prev_imgs.append(img)
 
-        prev_imgs = torch.cat((prev_imgs, img), 0)
-        prev_imgs = torch.unsqueeze(prev_imgs, 0)
+        prev_imgs = [transform(_prev_img).cuda() for _prev_img in prev_imgs]
+        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
+        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
+        prev_imgs = [_prev_img.unsqueeze(0) for _prev_img in prev_imgs]
+        prev_imgs = torch.stack(prev_imgs)
 
         prev_flow = model(prev_imgs)
         prev_flow_inverse = model(prev_imgs, inverse=True)
@@ -126,7 +140,7 @@ with torch.no_grad():
         gt_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_gt.jpg')
         print(gt_path)
         density_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_pred.jpg')
-        flow_1_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_1.jpg')
+        """flow_1_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_1.jpg')
         flow_2_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_2.jpg')
         flow_3_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_3.jpg')
         flow_4_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_4.jpg')
@@ -134,7 +148,7 @@ with torch.no_grad():
         flow_6_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_6.jpg')
         flow_7_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_7.jpg')
         flow_8_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_8.jpg')
-        flow_9_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_9.jpg')
+        flow_9_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_9.jpg')"""
 
         pred = cv2.resize(overall, (overall.shape[1] * PATCH_SIZE_PF, overall.shape[0] * PATCH_SIZE_PF),
                           interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)

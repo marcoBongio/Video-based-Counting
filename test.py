@@ -1,13 +1,33 @@
 import csv
-import json
+import math
 
-import torch.nn.functional as F
-from sklearn.metrics import mean_squared_error, mean_absolute_error
-from torch.autograd import Variable
+import h5py
+import json
+import PIL.Image as Image
+import numpy as np
+import os
+import glob
+import scipy
+from matplotlib import pyplot as plt
 
 from image import *
-from model import PFTS
-from variables import MODEL_NAME
+from model import CANNet2s
+import torch
+from torch.autograd import Variable
+import torch.nn.functional as F
+from PIL import Image
+import cv2
+import scipy.stats as st
+
+from torchvision import transforms
+
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+from variables import HEIGHT, WIDTH, MODEL_NAME, MEAN, STD
+
+transform = transforms.Compose([
+    transforms.ToTensor(), transforms.Normalize(mean=MEAN,
+                                                std=STD),
+])
 
 # the json file contains path of test images
 test_json_path = './test.json'
@@ -15,7 +35,7 @@ test_json_path = './test.json'
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
 
-model = PFTS()
+model = CANNet2s()
 
 model = model.cuda()
 
@@ -32,8 +52,8 @@ errs = []
 game = 0
 
 with torch.no_grad():
-    for i in range(len(img_paths)):
-        if i % 150 == 0:
+    for i in range(0, len(img_paths)):
+        if i % 250 == 0:
             print(str(i) + "/" + str(len(img_paths)))
 
         img_path = img_paths[i]
@@ -41,25 +61,31 @@ with torch.no_grad():
         img_name = os.path.basename(img_path)
         index = int(img_name.split('.')[0])
 
-        img = torch.load(img_path.replace('.jpg', '_features.pt'))
+        img = Image.open(img_path).convert('RGB')
+        img = img.resize((WIDTH, HEIGHT))
 
         gt_path = img_path.replace('.jpg', '_resize.h5')
         gt_file = h5py.File(gt_path)
         target = np.asarray(gt_file['density'])
 
-        prev_imgs = torch.FloatTensor().cuda()
+        prev_imgs = []
 
-        step = 1
+        step = 1 # math.ceil(5 / (NUM_FRAMES - 1))
 
-        for i in range(NUM_FRAMES - 1, 0, -step):
-            prev_index = int(max(1, index - i))
-            prev_img_path = os.path.join(img_folder, '%03d.jpg' % prev_index)
-            prev_img = torch.load(prev_img_path.replace('.jpg', '_features.pt'))
+        for s in range(NUM_FRAMES - 1, 0, -step):
+            prev_index = int(max(1, index - s))
+            prev_img_path = os.path.join(img_folder, '%03d.jpg' % (prev_index))
+            # print(prev_img_path)
+            prev_img = Image.open(prev_img_path).convert('RGB')
+            prev_img = prev_img.resize((WIDTH, HEIGHT))
+            prev_imgs.append(prev_img)
 
-            prev_imgs = torch.cat((prev_imgs, prev_img), 0)
-
-        prev_imgs = torch.cat((prev_imgs, img), 0)
-        prev_imgs = torch.unsqueeze(prev_imgs, 0)
+        prev_imgs.append(img)
+        prev_imgs = [transform(_prev_img).cuda() for _prev_img in prev_imgs]
+        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
+        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
+        prev_imgs = [_prev_img.unsqueeze(0) for _prev_img in prev_imgs]
+        prev_imgs = torch.stack(prev_imgs)
 
         prev_flow = model(prev_imgs)
         prev_flow_inverse = model(prev_imgs, inverse=True)
@@ -100,9 +126,11 @@ with torch.no_grad():
             for j in range(target.shape[1]):
                 game += abs(overall[k][j] - target[k][j])
 
+        print("GAME: " + str(game / (i + 1)))
+
 mae = mean_absolute_error(pred, gt)
 rmse = np.sqrt(mean_squared_error(pred, gt))
-game = game / len(img_paths)
+game = game / len(pred)
 
 print('MAE: ', mae)
 print('RMSE: ', rmse)
