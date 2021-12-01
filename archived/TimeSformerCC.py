@@ -17,7 +17,7 @@ from TimeSformer.timesformer.models.vit_utils import DropPath, to_2tuple, trunc_
 from timm.models.registry import register_model
 from torch import einsum
 from einops import rearrange, repeat
-from variables import HEIGHT, WIDTH, PATCH_SIZE_TS, PATCH_SIZE_PF, EMBED_DIM, AVG_POOL_SIZE, NUM_HEADS, DEPTH_TS, \
+from variables import HEIGHT, WIDTH, PATCH_SIZE_TS, PATCH_SIZE_PF, EMBED_DIM, NUM_HEADS, DEPTH_TS, \
     BE_CHANNELS, IN_CHANS
 
 
@@ -260,14 +260,14 @@ class VisionTransformer(nn.Module):
                     i += 1
 
         ## Output token
-        """
+
         self.output1 = nn.Sequential(
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(10000, 1440)
+            nn.Linear(EMBED_DIM, BE_CHANNELS)
         )
         self.output1.apply(self._init_weights)
-        """
+
         """self.output1 = nn.Sequential(
             nn.ReLU(),
             nn.Dropout(0.5),
@@ -368,11 +368,11 @@ class VisionTransformer(nn.Module):
         #print(x.shape)
         x = x.view(x.shape[0], -1)
         #print(x.shape)
-        #x = self.output1(x)
+        x = self.output1(x)
         #print("x_out = " + str(x))
 
-        x = rearrange(x, 'b (c h w) -> b c h w', b=1, c=BE_CHANNELS, h=math.floor(HEIGHT / PATCH_SIZE_PF),
-                      w=math.floor(WIDTH / PATCH_SIZE_PF))
+        #x = rearrange(x, 'b (c h w) -> b c h w', b=1, c=BE_CHANNELS, h=math.floor(HEIGHT / PATCH_SIZE_PF),
+        #              w=math.floor(WIDTH / PATCH_SIZE_PF))
 
         return x
 

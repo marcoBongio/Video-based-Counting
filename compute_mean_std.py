@@ -19,9 +19,9 @@ var = 0.0
 for i_batch, batch_target in enumerate(data_loader):
     if nimages % 250 == 0:
         print(str(nimages) + "/" + str(len(data_loader.dataset)))
-    batch = batch_target[0]
+    batch = batch_target[0][0]
+
     # Rearrange batch to be the shape of [B, C, W * H]
-    #print(batch.shape)
     batch = batch.view(batch.size(0), batch.size(1), -1)
     # Update total number of images
     nimages += batch.size(0)

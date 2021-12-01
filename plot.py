@@ -4,7 +4,7 @@ import PIL.Image as Image
 import numpy as np
 import os
 from image import *
-from model import CANNet2s
+from model import PFTS
 import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -38,12 +38,6 @@ def plotDensity(density, plot_path):
 
     cv2.imwrite(plot_path, new_map * 255)
 
-
-transform = transforms.Compose([
-    transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                std=[0.229, 0.224, 0.225]),
-])
-
 # json file contains the test images
 test_json_path = './test.json'
 
@@ -53,7 +47,7 @@ output_folder = 'plot'
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
 
-model = CANNet2s()
+model = PFTS()
 
 model = model.cuda()
 
@@ -68,43 +62,38 @@ gt = []
 
 try:
     os.mkdir(os.path.dirname('plot/'))
-    print("Done")
 except:
     pass
 
 with torch.no_grad():
     for i in range(len(img_paths)):
+        if i % 150 == 0:
+            print(str(i) + "/" + str(len(img_paths)))
+
         img_path = img_paths[i]
-        print(img_path)
         img_folder = os.path.dirname(img_path)
         img_name = os.path.basename(img_path)
         index = int(img_name.split('.')[0])
 
-        img = Image.open(img_path).convert('RGB')
-        img = img.resize((WIDTH, HEIGHT))
+        img = torch.load(img_path.replace('.jpg', '_features.pt'))
 
         gt_path = img_path.replace('.jpg', '_resize.h5')
         gt_file = h5py.File(gt_path)
         target = np.asarray(gt_file['density'])
 
-        prev_imgs = []
+        prev_imgs = torch.FloatTensor().cuda()
 
-        step = math.ceil(5 / (NUM_FRAMES - 1))
+        step = 1
 
-        for i in range(5, 0, -step):
+        for i in range(NUM_FRAMES - 1, 0, -step):
             prev_index = int(max(1, index - i))
-            prev_img_path = os.path.join(img_folder, '%03d.jpg' % (prev_index))
-            # print(prev_img_path)
-            prev_img = Image.open(prev_img_path).convert('RGB')
-            prev_img = prev_img.resize((WIDTH, HEIGHT))
-            prev_imgs.append(prev_img)
+            prev_img_path = os.path.join(img_folder, '%03d.jpg' % prev_index)
+            prev_img = torch.load(prev_img_path.replace('.jpg', '_features.pt'))
 
-        prev_imgs.append(img)
-        prev_imgs = [transform(_prev_img).cuda() for _prev_img in prev_imgs]
-        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
-        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
-        prev_imgs = [_prev_img.unsqueeze(0) for _prev_img in prev_imgs]
-        prev_imgs = torch.stack(prev_imgs)
+            prev_imgs = torch.cat((prev_imgs, prev_img), 0)
+
+        prev_imgs = torch.cat((prev_imgs, img), 0)
+        prev_imgs = torch.unsqueeze(prev_imgs, 0)
 
         prev_flow = model(prev_imgs)
         prev_flow_inverse = model(prev_imgs, inverse=True)

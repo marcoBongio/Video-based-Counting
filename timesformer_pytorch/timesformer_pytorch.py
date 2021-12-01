@@ -6,7 +6,7 @@ from torch import nn, einsum
 
 from timesformer_pytorch.rotary import apply_rot_emb, AxialRotaryEmbedding, RotaryEmbedding
 # helpers
-from variables import HEIGHT_TS, WIDTH_TS
+from variables import HEIGHT_TS, WIDTH_TS, IN_CHANS, BE_CHANNELS
 
 
 def exists(val):
@@ -217,7 +217,9 @@ class TimeSformer(nn.Module):
 
         self.to_out = nn.Sequential(
             nn.LayerNorm(dim),
-            nn.Linear(dim, num_locations)
+            nn.Linear(dim, num_locations),
+            #nn.Linear(dim, BE_CHANNELS)
+            #nn.ReLU()
         )
 
     def forward(self, video, mask=None):
@@ -232,7 +234,6 @@ class TimeSformer(nn.Module):
         n = hp * wp
 
         # video to patch embeddings
-
         video = rearrange(video, 'b f c (h p1) (w p2) -> b (f h w) (p1 p2 c)', p1=p, p2=p)
         tokens = self.patch_embed(video)
 
@@ -268,6 +269,20 @@ class TimeSformer(nn.Module):
         for (time_attn, spatial_attn, ff) in self.layers:
             x = time_attn(x, 'b (f n) d', '(b n) f d', n=n, mask=frame_mask, flows_mask=flows_attn_mask,
                           rot_emb=frame_pos_emb) + x
+
+            """flows_tokens = x[:, :10]
+            x = x[:, 10:]
+
+            for i in range(0, x.shape[1], 10 * f):
+                xx = x[:, i:(i + 10 * f), :]
+                xx = torch.cat((xx, flows_tokens), 1)
+                xx = spatial_attn(xx, 'b (f n) d', '(b f) n d', f=f, n=10, flows_mask=flows_attn_mask) + torch.cat(
+                    (flows_tokens, x[:, i:(i + 10 * f), :]), 1)
+                flows_tokens = xx[:, :10]
+                xx = xx[:, 10:]
+                x[:, i:(i + 10 * f), :] = xx
+            x = torch.cat((x, flows_tokens), 1)"""
+
             x = spatial_attn(x, 'b (f n) d', '(b f) n d', f=f, flows_mask=flows_attn_mask, rot_emb=image_pos_emb) + x
             x = ff(x) + x
 
@@ -276,5 +291,7 @@ class TimeSformer(nn.Module):
 
         del tokens, video, x, flows_tokens
         torch.cuda.empty_cache()
+
+        # out = rearrange(out, 'b fl (h w) -> b fl h w', b=1, fl=10, h=HEIGHT_TS, w=WIDTH_TS)
 
         return out

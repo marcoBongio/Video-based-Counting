@@ -1,18 +1,24 @@
 import argparse
 import gc
 import json
+import os
 import time
 
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn.functional as F
+from matplotlib import cm
 from torch import nn
 from torch.autograd import Variable
+from torchinfo import summary
 from torchvision import transforms
 
 import dataset
-from model import CANNet2s
+from model import PFTS
 from utils import save_checkpoint
-from variables import MODEL_NAME
+from variables import MODEL_NAME, IN_CHANS, NUM_FRAMES, WIDTH_TS, HEIGHT_TS, PATCH_SIZE_PF
 
 parser = argparse.ArgumentParser(description='PyTorch CANNet2s')
 
@@ -22,20 +28,37 @@ parser.add_argument('val_json', metavar='VAL',
                     help='path to val json')
 
 
+def plotDensity(density, axarr, k):
+    '''
+    @density: np array of corresponding density map
+    '''
+    density = density * 255.0
+
+    # plot with overlay
+    colormap_i = cm.jet(density)[:, :, 0:3]
+
+    overlay_i = colormap_i
+
+    new_map = overlay_i.copy()
+    new_map[:, :, 0] = overlay_i[:, :, 2]
+    new_map[:, :, 2] = overlay_i[:, :, 0]
+
+    axarr[k].imshow(255 * new_map.astype(np.uint8))
+
 def main():
     global args, best_prec1
     best_prec1 = 1e6
 
     args = parser.parse_args()
-    args.lr = 1e-4
+    args.lr = 1e-6
     args.batch_size = 1
     args.momentum = 0.95
-    args.decay = 5e-4
+    args.decay = 1e-4
     args.start_epoch = 0
     args.epochs = 200
     args.workers = 4
     args.seed = int(time.time())
-    args.print_freq = 150
+    args.print_freq = 10
     with open(args.train_json, 'r') as outfile:
         train_list = json.load(outfile)
     with open(args.val_json, 'r') as outfile:
@@ -43,7 +66,7 @@ def main():
 
     torch.cuda.manual_seed(args.seed)
 
-    model = CANNet2s(load_weights=False, batch_size=args.batch_size)
+    model = PFTS(load_weights=False, batch_size=args.batch_size)
 
     model = model.cuda()
 
@@ -52,7 +75,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), args.lr,
                                  weight_decay=args.decay)
 
-    print(model)
+    summary(model, input_size=(args.batch_size, NUM_FRAMES, IN_CHANS, HEIGHT_TS, WIDTH_TS))
 
     # modify the path of saved checkpoint if necessary
     try:
@@ -91,15 +114,11 @@ def train(train_list, model, criterion, optimizer, epoch):
     train_loader = torch.utils.data.DataLoader(
         dataset.listDataset(train_list,
                             shuffle=True,
-                            transform=transforms.Compose([
-                                transforms.ToTensor(), transforms.Normalize(mean=[0.4846, 0.4558, 0.4324],
-                                                                            std=[0.2181, 0.2136, 0.2074]),
-                            ]),
                             train=True,
                             num_workers=args.workers),
         batch_size=args.batch_size)
     print('epoch %d, processed %d samples, lr %.10f' % (
-        epoch, epoch * len(train_loader.dataset), args.lr))  # cambiare print
+        epoch, epoch * len(train_loader.dataset), args.lr))
 
     model.train()
     end = time.time()
@@ -108,22 +127,14 @@ def train(train_list, model, criterion, optimizer, epoch):
 
         data_time.update(time.time() - end)
 
-        prev_imgs.append(img)
-        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
-        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
-        prev_imgs = torch.stack(prev_imgs)
-
+        prev_imgs = Variable(prev_imgs, requires_grad=True)
         prev_flow = model(prev_imgs)
         prev_flow_inverse = model(prev_imgs, inverse=True)
 
         del prev_imgs
         torch.cuda.empty_cache()
 
-        post_imgs.insert(0, img)
-        post_imgs = [_post_img.cuda() for _post_img in post_imgs]
-        post_imgs = [Variable(_post_img) for _post_img in post_imgs]
-        post_imgs = torch.stack(post_imgs)
-
+        post_imgs = Variable(post_imgs, requires_grad=True)
         post_flow = model(post_imgs)
         post_flow_inverse = model(post_imgs, inverse=True)
 
@@ -238,10 +249,11 @@ def train(train_list, model, criterion, optimizer, epoch):
                                                                                  :-1]) + criterion(
             post_flow[0, 7, :-1, :], post_flow_inverse[0, 1, 1:, :]) + criterion(post_flow[0, 8, :-1, :-1],
                                                                                  post_flow_inverse[0, 0, 1:, 1:])
-        """if i % args.print_freq == 0:
+        if i % args.print_freq == 0:
             print("\nTarget = " + str(torch.sum(target)))
             overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
             pred_sum = overall.sum()
+
             print("Pred = " + str(pred_sum))
             print("Reconstruction from prev = " + str(torch.sum(reconstruction_from_prev)))
             print("Reconstruction from post = " + str(torch.sum(reconstruction_from_post)))
@@ -259,12 +271,24 @@ def train(train_list, model, criterion, optimizer, epoch):
             print("loss_prev = " + str(loss_prev))
             print("loss_post = " + str(loss_post))
             print("loss_prev_consistency = " + str(loss_prev_consistency))
-            print("loss_post_consistency = " + str(loss_post_consistency))"""
+            print("loss_post_consistency = " + str(loss_post_consistency))
 
         loss = loss_prev_flow + loss_post_flow + loss_prev_flow_inverse + loss_post_flow_inverse + loss_prev + loss_post + loss_prev_consistency + loss_post_consistency
-
+        print(img.size(0))
         losses.update(loss.item(), img.size(0))
         optimizer.zero_grad()
+
+        if i % args.print_freq == 0:
+            pred = cv2.resize(overall, (overall.shape[1] * PATCH_SIZE_PF, overall.shape[0] * PATCH_SIZE_PF),
+                              interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
+
+            target = cv2.resize(target.cpu().detach().numpy(),
+                                (target.shape[1] * PATCH_SIZE_PF, target.shape[0] * PATCH_SIZE_PF),
+                                interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
+            fig, axarr = plt.subplots(1, 2)
+            plotDensity(pred, axarr, 0)
+            plotDensity(target, axarr, 1)
+            plt.show()
 
         del prev_flow, post_flow, prev_flow_inverse, post_flow_inverse, loss_prev_flow, \
             loss_post_flow, loss_prev_flow_inverse, loss_post_flow_inverse, loss_prev, loss_post, loss_prev_consistency, \
@@ -273,7 +297,6 @@ def train(train_list, model, criterion, optimizer, epoch):
             prev_reconstruction_from_prev, prev_target, reconstruction_from_post, reconstruction_from_post_inverse, \
             reconstruction_from_prev, reconstruction_from_prev_inverse, target
 
-        gc.collect()
         torch.cuda.empty_cache()
 
         loss.backward()
@@ -297,10 +320,7 @@ def validate(val_list, model, criterion):
     val_loader = torch.utils.data.DataLoader(
         dataset.listDataset(val_list,
                             shuffle=False,
-                            transform=transforms.Compose([
-                                transforms.ToTensor(), transforms.Normalize(mean=[0.4846, 0.4558, 0.4324],
-                                                                            std=[0.2181, 0.2136, 0.2074]),
-                            ]), train=False),
+                            train=False),
         batch_size=args.batch_size)
 
     model.eval()
@@ -309,11 +329,6 @@ def validate(val_list, model, criterion):
 
     for i, (prev_imgs, img, post_imgs, _, target, _) in enumerate(val_loader):
         # only use previous frame in inference time, as in real-time application scenario, future frame is not available
-        prev_imgs.append(img)
-        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
-        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
-        prev_imgs = torch.stack(prev_imgs)
-
         prev_flow = model(prev_imgs)
         prev_flow_inverse = model(prev_imgs, inverse=True)
 

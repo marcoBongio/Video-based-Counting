@@ -29,10 +29,10 @@ if __name__ == '__main__':
                 test_img_list.append(join(root, file_name))
 
     all_num = len(train_all_img_list)
-    train_num = int(all_num*0.8)
+    train_num = 1050  # int(all_num*0.8)
     random.shuffle(train_all_img_list)
     train_img_list = train_all_img_list[:train_num]
-    val_img_list = train_all_img_list[train_num:]
+    val_img_list = train_all_img_list[train_num:1650]
 
     with open(output_train_all, 'w') as f:
         json.dump(train_all_img_list, f)
