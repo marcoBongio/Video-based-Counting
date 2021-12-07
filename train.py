@@ -324,9 +324,7 @@ def train(train_list, model, criterion, optimizer, epoch):
 
 
 def validate(val_list, model, criterion):
-
     mse_loss = AverageMeter()
-    game_loss = AverageMeter()
     print('begin val')
     val_loader = torch.utils.data.DataLoader(
         dataset.listDataset(val_list,
@@ -341,8 +339,6 @@ def validate(val_list, model, criterion):
     model.eval()
 
     mae = 0
-    mse = 0
-    game = 0
 
     for i, (prev_imgs, img, post_imgs, _, target, _) in enumerate(val_loader):
         # only use previous frame in inference time, as in real-time application scenario, future frame is not available
@@ -350,8 +346,9 @@ def validate(val_list, model, criterion):
         prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
         prev_imgs = torch.stack(prev_imgs)
 
-        prev_flow = model(prev_imgs)
-        prev_flow_inverse = model(prev_imgs, inverse=True)
+        with torch.no_grad():
+            prev_flow = model(prev_imgs)
+            prev_flow_inverse = model(prev_imgs, inverse=True)
 
         target = target.type(torch.FloatTensor)[0].cuda()
         target = Variable(target)
@@ -385,12 +382,6 @@ def validate(val_list, model, criterion):
         mse = criterion(overall, target)
         mse_loss.update(mse.item(), img.size(0))
 
-        game = 0
-        for k in range(target.shape[0]):
-            for j in range(target.shape[1]):
-                game += abs(overall[k][j] - target[k][j])
-        #game_loss.update(game, img.size(0))
-
         del mse, target, overall, prev_flow, prev_flow_inverse
         torch.cuda.empty_cache()
 
@@ -399,10 +390,8 @@ def validate(val_list, model, criterion):
           .format(mae=mae))
     print(' * MSE {mse:.3f} '
           .format(mse=mse_loss.avg))
-    #print(' * GAME {game:.3f} '
-    #      .format(game=game_loss.avg))
 
-    return mse_loss.avg
+    return mae
 
 
 class AverageMeter(object):

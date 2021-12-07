@@ -15,27 +15,51 @@ if __name__ == '__main__':
     output_val = join(root, 'val.json')
     output_test = join(root, 'test.json')
 
-    train_all_img_list = []
+    train_img_list = []
+    val_img_list = []
     test_img_list = []
 
-    for root, dirs, files in os.walk(train_folders):
+    dirs = next(os.walk(train_folders))[1]
+    train_dirs = random.sample(dirs, int(len(dirs) * 0.2))
+
+    for dir_name in train_dirs:
+        path = join(train_folders, dir_name)
+        for _, _, files in os.walk(path):
+            for file_name in files:
+                if file_name.endswith('.jpg'):
+                    train_img_list.append(join(path, file_name))
+
+    val_dirs = list(set(dirs).difference(train_dirs))
+    val_dirs = random.sample(val_dirs, int(len(dirs) * 0.05))
+
+    for dir_name in val_dirs:
+        path = join(train_folders, dir_name)
+        for _, _, files in os.walk(path):
+            for file_name in files:
+                if file_name.endswith('.jpg'):
+                    val_img_list.append(join(path, file_name))
+
+    """for root, dirs, files in os.walk(train_folders):
         for file_name in files:
             if file_name.endswith('.jpg'):
-                train_all_img_list.append(join(root, file_name))
+                train_all_img_list.append(join(root, file_name))"""
 
     for root, dirs, files in os.walk(test_folders):
         for file_name in files:
             if file_name.endswith('.jpg'):
                 test_img_list.append(join(root, file_name))
 
-    all_num = len(train_all_img_list)
-    train_num = int(all_num*0.8)
-    random.shuffle(train_all_img_list)
-    train_img_list = train_all_img_list[:train_num]
-    val_img_list = train_all_img_list[train_num:]
+    # all_num = len(train_all_img_list)
+    # train_num = int(all_num*0.8)
+    random.shuffle(train_img_list)
+    # train_img_list = train_all_img_list[:train_num]
+    # val_img_list = train_all_img_list[train_num:]
+
+    # with open(output_train_all, 'w') as f:
+    #    json.dump(train_all_img_list, f)
 
     with open(output_train_all, 'w') as f:
-        json.dump(train_all_img_list, f)
+        json.dump(train_img_list, f)
 
     with open(output_train, 'w') as f:
         json.dump(train_img_list, f)

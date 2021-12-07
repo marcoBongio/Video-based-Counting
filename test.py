@@ -126,12 +126,15 @@ with torch.no_grad():
             for j in range(target.shape[1]):
                 game += abs(overall[k][j] - target[k][j])
 
-        print("GAME: " + str(game / (i + 1)))
+        print('MAE: ', mean_absolute_error(pred, gt))
+        print('RMSE: ', np.sqrt(mean_squared_error(pred, gt)))
+        print("GAME: " + str(game / (i + 1)) + "\n")
 
 mae = mean_absolute_error(pred, gt)
 rmse = np.sqrt(mean_squared_error(pred, gt))
 game = game / len(pred)
 
+print("FINAL RESULT")
 print('MAE: ', mae)
 print('RMSE: ', rmse)
 print('GAME: ', game)

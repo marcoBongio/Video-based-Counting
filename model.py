@@ -61,6 +61,7 @@ class CANNet2s(nn.Module):
             num_frames=NUM_FRAMES,
             channels=IN_CHANS,
             depth=DEPTH_TS,
+            heads=NUM_HEADS,
             dim_head=DIM_HEAD,
             attn_dropout=0.1,
             ff_dropout=0.1)
@@ -89,12 +90,14 @@ class CANNet2s(nn.Module):
         for i in range(x.shape[1]):
             x_prev = self.frontend(x[:, i])
             x_prev = self.context(x_prev)
+
             xx = torch.cat((xx, x_prev), 0)
 
         x = xx.unsqueeze(0)
         x = self.timesformer(x)
 
         x = rearrange(x, 'b fl (h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT_TS, w=WIDTH_TS)
+        # x = rearrange(x, 'b fl (h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT//16, w=WIDTH//16)
 
         x = self.output_layer(x)
         x = self.relu(x)
