@@ -145,7 +145,7 @@ class Block(nn.Module):
 
             ### Taking care of flows token
             flows_token = res_spatial[:, :10, :]
-            #flows_token = rearrange(flows_token, '(b t) fl m -> b t fl m', b=B, t=T)
+            # flows_token = rearrange(flows_token, '(b t) fl m -> b t fl m', b=B, t=T)
             flows_token = torch.mean(flows_token, 0, True)  ## averaging for every frame
             res_spatial = res_spatial[:, 10:, :]
             res_spatial = rearrange(res_spatial, '(b t) (h w) m -> b (h w t) m', b=B, h=H, w=W, t=T)
@@ -358,7 +358,7 @@ class vit_base_patch16_224(nn.Module):
 @MODEL_REGISTRY.register()
 class TimeSformer(nn.Module):
     def __init__(self, height=HEIGHT_TS, width=WIDTH_TS, patch_size=PATCH_SIZE_TS, num_classes=0, num_frames=NUM_FRAMES,
-                 attention_type='divided_space_time', pretrained_model='', **kwargs):
+                 attention_type='divided_space_time', pretrained_model='', **kwargs) -> object:
         super(TimeSformer, self).__init__()
         self.pretrained = False
         self.model = VisionTransformer(height=HEIGHT_TS, width=WIDTH_TS, num_classes=num_classes, patch_size=patch_size,

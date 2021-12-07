@@ -10,7 +10,8 @@ import torchvision.transforms.functional as F
 
 class listDataset(Dataset):
     def __init__(self, root, shape=None, shuffle=True, transform=None, train=False, batch_size=1, num_workers=4):
-        random.shuffle(root)
+        if shuffle:
+            random.shuffle(root)
 
         self.nSamples = len(root)
         self.lines = root

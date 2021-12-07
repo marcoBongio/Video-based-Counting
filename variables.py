@@ -17,5 +17,5 @@ NUM_HEADS = 8
 EMBED_DIM = 2048
 DIM_HEAD = EMBED_DIM // NUM_HEADS
 
-MODEL_NAME = "pfts_320_f4_d2_h8_ed2048_nospatial_1800"
-epoch = 2
+MODEL_NAME = "pfts_320_f4_d2_h8_ed2048_nospatial_1scene"
+

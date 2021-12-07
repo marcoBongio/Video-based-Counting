@@ -20,7 +20,7 @@ if __name__ == '__main__':
     test_img_list = []
 
     dirs = next(os.walk(train_folders))[1]
-    train_dirs = random.sample(dirs, int(len(dirs) * 0.2))
+    train_dirs = random.sample(dirs, 1) # int(len(dirs) * 0.8))
 
     for dir_name in train_dirs:
         path = join(train_folders, dir_name)
@@ -30,7 +30,7 @@ if __name__ == '__main__':
                     train_img_list.append(join(path, file_name))
 
     val_dirs = list(set(dirs).difference(train_dirs))
-    val_dirs = random.sample(val_dirs, int(len(dirs) * 0.05))
+    val_dirs = random.sample(val_dirs, 1)
 
     for dir_name in val_dirs:
         path = join(train_folders, dir_name)

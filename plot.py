@@ -48,7 +48,7 @@ transform = transforms.Compose([
 test_json_path = './test.json'
 
 # the folder to output density map and flow maps
-output_folder = 'plot'
+output_folder = os.path.join('plot', MODEL_NAME)
 
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
@@ -71,8 +71,13 @@ try:
 except:
     pass
 
+try:
+    os.mkdir(os.path.dirname(os.path.join('plot', MODEL_NAME + '/')))
+except:
+    pass
+
 with torch.no_grad():
-    for i in range(0, len(img_paths), 150):
+    for i in range(34, len(img_paths), 150):
         if i % 150 == 0:
             print(str(i) + "/" + str(len(img_paths)))
 
