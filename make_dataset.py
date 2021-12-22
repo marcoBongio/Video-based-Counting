@@ -7,14 +7,13 @@ from matplotlib import pyplot as plt
 from scipy.ndimage.filters import gaussian_filter
 import json
 from image import *
-from variables import HEIGHT,WIDTH
+from variables import HEIGHT, WIDTH
 
 # set the root to the path of FDST dataset you download
 root = ''
 
 # now generate the FDST's ground truth
 train_folder = os.path.join(root, 'train_data')
-print(train_folder)
 test_folder = os.path.join(root, 'test_data')
 path_sets = [os.path.join(train_folder, f) for f in os.listdir(train_folder) if
              os.path.isdir(os.path.join(train_folder, f))] + [os.path.join(test_folder, f) for f in

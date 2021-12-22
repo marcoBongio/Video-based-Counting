@@ -5,11 +5,11 @@ import random
 
 if __name__ == '__main__':
     # root is the path to your code, which is current directory
-    root = ''
+    root = 'venice'
     # root_data is where you download the FDST dataset
-    root_data = ''
-    train_folders = join(root_data, 'train_data')
-    test_folders = join(root_data, 'test_data')
+    root_data = '../venice/venice/'
+    train_folders = join(root_data, 'train_data/images/')
+    test_folders = join(root_data, 'test_data/images/')
     output_train_all = join(root, 'train_all.json')
     output_train = join(root, 'train.json')
     output_val = join(root, 'val.json')
@@ -29,19 +29,19 @@ if __name__ == '__main__':
                 test_img_list.append(join(root, file_name))
 
     all_num = len(train_all_img_list)
-    train_num = int(all_num*0.8)
-    random.shuffle(train_all_img_list)
+    train_num = int(all_num * 0.8)
+    # random.shuffle(train_all_img_list)
     train_img_list = train_all_img_list[:train_num]
     val_img_list = train_all_img_list[train_num:]
 
-    """with open(output_train_all, 'w') as f:
+    with open(output_train_all, 'w') as f:
         json.dump(train_all_img_list, f)
 
     with open(output_train, 'w') as f:
         json.dump(train_img_list, f)
 
     with open(output_val, 'w') as f:
-        json.dump(val_img_list, f)"""
+        json.dump(val_img_list, f)
 
     with open(output_test, 'w') as f:
         json.dump(test_img_list, f)

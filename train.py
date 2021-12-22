@@ -1,23 +1,26 @@
-from matplotlib import pyplot as plt, cm
+import math
+import os
 
-import argparse
-import json
-import time
-
-import cv2
-import numpy as np
-import torch
-import torch.nn.functional as F
 from matplotlib import pyplot as plt, cm
-from torch import nn
-from torch.autograd import Variable
 from torchinfo import summary
-from torchvision import transforms
 
-import dataset
 from model import CANNet2s
 from utils import save_checkpoint
-from variables import WIDTH, HEIGHT, MODEL_NAME, NUM_FRAMES, PATCH_SIZE_PF, MEAN, STD
+
+import torch
+from torch import nn
+from torch.autograd import Variable
+from torchvision import datasets, transforms
+import torch.nn.functional as F
+
+import numpy as np
+import argparse
+import json
+import cv2
+import dataset
+import time
+
+from variables import HEIGHT, WIDTH, MODEL_NAME, PATCH_SIZE_PF, MEAN, STD
 
 parser = argparse.ArgumentParser(description='PyTorch CANNet2s')
 
@@ -44,29 +47,32 @@ def plotDensity(density, axarr, k):
 
     axarr[k].imshow(255 * new_map.astype(np.uint8))
 
+
 def main():
-    global args, best_prec1
-    best_prec1 = 1e6
+    global args
 
     args = parser.parse_args()
-    args.lr = 1e-5
+    args.best_prec1 = 1e6
+    args.lr = 1e-4
     args.batch_size = 1
     args.momentum = 0.95
     args.decay = 5 * 1e-4
     args.start_epoch = 0
+    args.start_frame = 0
     args.epochs = 200
     args.workers = 4
     args.seed = int(time.time())
-    args.print_freq = 10
+    args.print_freq = 1
+    args.log_freg = 3600
+
     with open(args.train_json, 'r') as outfile:
-        train_list = json.load(outfile)
+        args.train_list = json.load(outfile)
     with open(args.val_json, 'r') as outfile:
-        val_list = json.load(outfile)
+        args.val_list = json.load(outfile)
 
     torch.cuda.manual_seed(args.seed)
-    # torch.autograd.detect_anomaly()
 
-    model = CANNet2s(load_weights=False, batch_size=args.batch_size)
+    model = CANNet2s()
 
     model = model.cuda()
 
@@ -75,7 +81,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), args.lr,
                                  weight_decay=args.decay)
 
-    summary(model, input_size=(args.batch_size, NUM_FRAMES, 3, HEIGHT, WIDTH))
+    summary(model, input_size=((args.batch_size, 3, HEIGHT, WIDTH), (args.batch_size, 3, HEIGHT, WIDTH)))
 
     # modify the path of saved checkpoint if necessary
     try:
@@ -84,25 +90,31 @@ def main():
         optimizer.load_state_dict(checkpoint['optimizer'])
         print(optimizer)
         args.start_epoch = checkpoint['epoch']
-        best_prec1 = checkpoint['best_prec'].item()
-        print(best_prec1)
-        print("Train model " + MODEL_NAME + " from epoch " + str(args.start_epoch) + " with best prec = " + str(best_prec1) + "...")
+        args.start_frame = checkpoint['start_frame']
+        try:
+            args.best_prec1 = checkpoint['best_prec'].item()
+        except:
+            args.best_prec1 = checkpoint['best_prec']
+        print("Train model " + MODEL_NAME + " from epoch " + str(args.start_epoch) + " with best prec = " + str(
+            args.best_prec1) + "...")
     except:
         print("Train model " + MODEL_NAME + "...")
 
     for epoch in range(args.start_epoch, args.epochs):
-        train(train_list, model, criterion, optimizer, epoch)
-        prec1 = validate(val_list, model, criterion)
+        train(args.train_list, model, criterion, optimizer, epoch)
+        prec1 = validate(args.val_list, model, criterion)
 
-        is_best = prec1 < best_prec1
-        best_prec1 = min(prec1, best_prec1)
-        print(' * best GAME {game:.3f} '
-              .format(game=best_prec1))
+        is_best = prec1 < args.best_prec1
+        args.best_prec1 = min(prec1, args.best_prec1)
+        args.start_frame = 0
+        print(' * best MSE {mse:.3f} '
+              .format(mse=args.best_prec1))
         save_checkpoint({
             'epoch': epoch + 1,
+            'start_frame': 0,
             'state_dict': model.state_dict(),
             'optimizer': optimizer.state_dict(),
-            'best_prec': best_prec1
+            'best_prec': args.best_prec1
         }, is_best)
 
 
@@ -119,38 +131,34 @@ def train(train_list, model, criterion, optimizer, epoch):
                                                                             std=STD),
                             ]),
                             train=True,
+                            batch_size=args.batch_size,
                             num_workers=args.workers),
         batch_size=args.batch_size)
     print('epoch %d, processed %d samples, lr %.10f' % (
-        epoch, epoch * len(train_loader.dataset), args.lr))
+        epoch, epoch * len(train_loader.dataset) + args.start_frame, args.lr))
 
     model.train()
     end = time.time()
 
-    for i, (prev_imgs, img, post_imgs, prev_target, target, post_target) in enumerate(train_loader):
-
+    for i, (prev_img, img, post_img, prev_target, target, post_target) in enumerate(train_loader):
+        if i + 1 <= args.start_frame:
+            continue
         data_time.update(time.time() - end)
 
-        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
-        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
-        prev_imgs = torch.stack(prev_imgs)
+        prev_img = prev_img.cuda()
+        prev_img = Variable(prev_img)
 
-        post_imgs = [_post_img.cuda() for _post_img in post_imgs]
-        post_imgs = [Variable(_post_img) for _post_img in post_imgs]
-        post_imgs = torch.stack(post_imgs)
+        img = img.cuda()
+        img = Variable(img)
 
-        prev_flow = model(prev_imgs)
-        prev_flow_inverse = model(prev_imgs, inverse=True)
+        post_img = post_img.cuda()
+        post_img = Variable(post_img)
 
-        del prev_imgs
-        torch.cuda.empty_cache()
+        prev_flow, _ = model(prev_img, img)
+        post_flow, _ = model(img, post_img)
 
-        post_imgs = Variable(post_imgs, requires_grad=True)
-        post_flow = model(post_imgs)
-        post_flow_inverse = model(post_imgs, inverse=True)
-
-        del post_imgs
-        torch.cuda.empty_cache()
+        prev_flow_inverse, _ = model(img, prev_img)
+        post_flow_inverse, _ = model(post_img, img)
 
         target = target.type(torch.FloatTensor)[0].cuda()
         target = Variable(target)
@@ -271,7 +279,7 @@ def train(train_list, model, criterion, optimizer, epoch):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if i % args.print_freq == 0:
+        if (i+1) % args.print_freq == 0:
             print("\nTarget = " + str(torch.sum(target)))
             overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
             pred_sum = overall.sum()
@@ -310,21 +318,26 @@ def train(train_list, model, criterion, optimizer, epoch):
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                 .format(
-                epoch, i, len(train_loader), batch_time=batch_time,
+                epoch, i+1, len(train_loader), batch_time=batch_time,
                 data_time=data_time, loss=losses))
 
-        del prev_flow, post_flow, prev_flow_inverse, post_flow_inverse, loss_prev_flow, \
-            loss_post_flow, loss_prev_flow_inverse, loss_post_flow_inverse, loss_prev, loss_post, loss_prev_consistency, \
-            loss_post_consistency, mask_boundry, post_density_reconstruction, post_density_reconstruction_inverse, \
-            post_reconstruction_from_post, post_target, prev_density_reconstruction, prev_density_reconstruction_inverse, \
-            prev_reconstruction_from_prev, prev_target, reconstruction_from_post, reconstruction_from_post_inverse, \
-            reconstruction_from_prev, reconstruction_from_prev_inverse, target
+        if ((i + 1) % args.log_freg == 0) & ((i + 1) != len(train_loader)):
+            prec1 = validate(args.val_list, model, criterion)
 
-        torch.cuda.empty_cache()
+            is_best = prec1 < args.best_prec1
+            args.best_prec1 = min(prec1, args.best_prec1)
+            print(' * best MSE {mse:.3f} '
+                  .format(mse=args.best_prec1))
+            save_checkpoint({
+                'epoch': epoch,
+                'start_frame': i + 1,
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'best_prec': args.best_prec1
+            }, is_best)
 
 
 def validate(val_list, model, criterion):
-    mse_loss = AverageMeter()
     print('begin val')
     val_loader = torch.utils.data.DataLoader(
         dataset.listDataset(val_list,
@@ -338,17 +351,20 @@ def validate(val_list, model, criterion):
 
     model.eval()
 
-    mae = 0
+    mae = 0.0
+    mse = 0.0
 
-    for i, (prev_imgs, img, post_imgs, _, target, _) in enumerate(val_loader):
+    for i, (prev_img, img, post_img, _, target, _) in enumerate(val_loader):
         # only use previous frame in inference time, as in real-time application scenario, future frame is not available
-        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
-        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
-        prev_imgs = torch.stack(prev_imgs)
+        prev_img = prev_img.cuda()
+        prev_img = Variable(prev_img)
+
+        img = img.cuda()
+        img = Variable(img)
 
         with torch.no_grad():
-            prev_flow = model(prev_imgs)
-            prev_flow_inverse = model(prev_imgs, inverse=True)
+            prev_flow, _ = model(prev_img, img)
+            prev_flow_inverse, _ = model(img, prev_img)
 
         target = target.type(torch.FloatTensor)[0].cuda()
         target = Variable(target)
@@ -373,25 +389,23 @@ def validate(val_list, model, criterion):
                                                                                               :] * mask_boundry
 
         overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).type(torch.FloatTensor)
+
         target = target.type(torch.FloatTensor)
 
         if i % args.print_freq == 0:
             print("PRED = " + str(overall.data.sum()))
             print("GT = " + str(target.sum()))
         mae += abs(overall.data.sum() - target.sum())
-        mse = criterion(overall, target)
-        mse_loss.update(mse.item(), img.size(0))
-
-        del mse, target, overall, prev_flow, prev_flow_inverse
-        torch.cuda.empty_cache()
+        mse += abs(overall.data.sum() - target.sum()) * abs(overall.data.sum() - target.sum())
 
     mae = mae / len(val_loader)
+    mse = math.sqrt(mse / len(val_loader))
     print(' * MAE {mae:.3f} '
           .format(mae=mae))
     print(' * MSE {mse:.3f} '
-          .format(mse=mse_loss.avg))
+          .format(mse=mse))
 
-    return mae
+    return mse
 
 
 class AverageMeter(object):

@@ -3,10 +3,15 @@ import csv
 import h5py
 import json
 import PIL.Image as Image
+import numpy
 import numpy as np
 import os
 import glob
 import scipy
+import scipy.io
+import skimage
+from matplotlib import pyplot as plt
+from skimage.transform import warp
 from torchinfo import summary
 
 from image import *
@@ -28,10 +33,14 @@ transform = transforms.Compose([
 ])
 
 # the json file contains path of test images
-test_json_path = './test.json'
+test_json_path = 'venice/test.json'
+train_all_json_path = 'venice/train_all.json'
 
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
+
+with open(train_all_json_path, 'r') as outfile:
+    img_paths.extend(json.load(outfile))
 
 model = CANNet2s()
 
@@ -39,8 +48,10 @@ model = model.cuda()
 
 summary(model, input_size=((1, 3, HEIGHT, WIDTH), (1, 3, HEIGHT, WIDTH)))
 
+##MODEL_NAME = 'fdst'
 # modify the path of saved checkpoint if necessary
-checkpoint = torch.load("models/model_best_" + MODEL_NAME + '.pth.tar', map_location='cpu')
+checkpoint = torch.load('models/model_best_' + MODEL_NAME + '.pth.tar', map_location='cpu')
+# checkpoint = torch.load('fdst.pth.tar', map_location='cpu')
 
 model.load_state_dict(checkpoint['state_dict'])
 
@@ -54,29 +65,55 @@ game = 0
 for i in range(len(img_paths)):
     img_path = img_paths[i]
     print(str(i) + "/" + str(len(img_paths)))
+    print(img_path)
     img_folder = os.path.dirname(img_path)
     img_name = os.path.basename(img_path)
     index = int(img_name.split('.')[0])
 
-    prev_index = int(max(1, index - 5))
+    prev_index = int(index - 60)
+    prev_index = str(prev_index)[:4] + "_" + str(prev_index)[4:]
 
-    prev_img_path = os.path.join(img_folder, '%03d.jpg' % (prev_index))
+    prev_img_path = os.path.join(img_folder, prev_index + '.jpg')
 
-    prev_img = Image.open(prev_img_path).convert('RGB')
     img = Image.open(img_path).convert('RGB')
+
+    mat_path = img_path.replace('.jpg', '.mat').replace('images', 'ground-truth')
+    mat = scipy.io.loadmat(mat_path)
+    roi = skimage.transform.resize(mat['roi'], (HEIGHT, WIDTH), order=0)
+    hom = mat['homograph']
+
+    try:
+        prev_img = Image.open(prev_img_path).convert('RGB')
+        mat_path = prev_img_path.replace('.jpg', '.mat').replace('images', 'ground-truth')
+        prev_mat = scipy.io.loadmat(mat_path)
+        prev_roi = skimage.transform.resize(prev_mat['roi'], (HEIGHT, WIDTH), order=0)
+        prev_hom = prev_mat['homograph']
+    except:
+        prev_img = img
+        prev_roi = roi
+        prev_hom = hom
 
     prev_img = prev_img.resize((WIDTH, HEIGHT))
     img = img.resize((WIDTH, HEIGHT))
 
+    prev_img = np.array(prev_img)
+    img = np.array(img)
+
     prev_img = transform(prev_img).cuda()
     img = transform(img).cuda()
+
+    prev_img = prev_img * torch.FloatTensor(prev_roi).cuda()
+    img = img * torch.FloatTensor(roi).cuda()
+
+    """plt.imshow(255 * roi.astype('uint8'))
+    plt.show()
+
+    plt.imshow(img.cpu().permute(1, 2, 0).numpy().astype('uint8'))
+    plt.show()"""
 
     gt_path = img_path.replace('.jpg', '_resize.h5')
     gt_file = h5py.File(gt_path)
     target = np.asarray(gt_file['density'])
-    # print(np.sum(target))
-    # target = cv2.resize(target, (int(target.shape[1] / 8), int(target.shape[0] / 8)),
-    #                   interpolation=cv2.INTER_CUBIC) * 64
 
     prev_img = prev_img.cuda()
     prev_img = Variable(prev_img)
@@ -145,11 +182,11 @@ results = zip(errs, gt, pred)
 header = ["Error", "GT", "Prediction"]
 
 try:
-    os.mkdir(os.path.dirname("results/"))
+    os.mkdir(os.path.dirname("venice/results/"))
 except:
     pass
 
-with open("results/model_best_" + MODEL_NAME + ".csv", "w") as f:
+with open("venice/results/model_best_" + MODEL_NAME + ".csv", "w") as f:
     writer = csv.writer(f)
     writer.writerow(header)
     for row in results:

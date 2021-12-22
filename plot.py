@@ -77,45 +77,41 @@ except:
     pass
 
 with torch.no_grad():
-    for i in range(34, len(img_paths), 150):
-        if i % 150 == 0:
-            print(str(i) + "/" + str(len(img_paths)))
-
+    for i in range(0, len(img_paths), 150):
         img_path = img_paths[i]
 
         img_folder = os.path.dirname(img_path)
         img_name = os.path.basename(img_path)
         index = int(img_name.split('.')[0])
 
+        prev_index = int(max(1, index - 5))
+        prev_img_path = os.path.join(img_folder, '%03d.jpg' % (prev_index))
+
+        prev_img = Image.open(prev_img_path).convert('RGB')
         img = Image.open(img_path).convert('RGB')
+
+        prev_img = prev_img.resize((WIDTH, HEIGHT))
         img = img.resize((WIDTH, HEIGHT))
+
+        prev_img = transform(prev_img).cuda()
+        img = transform(img).cuda()
 
         gt_path = img_path.replace('.jpg', '_resize.h5')
         gt_file = h5py.File(gt_path)
         target = np.asarray(gt_file['density'])
 
-        prev_imgs = []
+        prev_img = prev_img.cuda()
+        prev_img = Variable(prev_img)
 
-        step = math.ceil(5 / (NUM_FRAMES - 1))
+        img = img.cuda()
+        img = Variable(img)
 
-        for s in range(NUM_FRAMES - 1, 0, -step):
-            prev_index = int(max(1, index - s))
-            prev_img_path = os.path.join(img_folder, '%03d.jpg' % (prev_index))
-            # print(prev_img_path)
-            prev_img = Image.open(prev_img_path).convert('RGB')
-            prev_img = prev_img.resize((WIDTH, HEIGHT))
-            prev_imgs.append(prev_img)
+        img = img.unsqueeze(0)
+        prev_img = prev_img.unsqueeze(0)
 
-        prev_imgs.append(img)
-
-        prev_imgs = [transform(_prev_img).cuda() for _prev_img in prev_imgs]
-        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
-        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
-        prev_imgs = [_prev_img.unsqueeze(0) for _prev_img in prev_imgs]
-        prev_imgs = torch.stack(prev_imgs)
-
-        prev_flow = model(prev_imgs)
-        prev_flow_inverse = model(prev_imgs, inverse=True)
+        with torch.no_grad():
+            prev_flow, _ = model(prev_img, img)
+            prev_flow_inverse, _ = model(img, prev_img)
 
         mask_boundry = torch.zeros(prev_flow.shape[2:])
         mask_boundry[0, :] = 1.0
@@ -178,5 +174,4 @@ with torch.no_grad():
         plotDensity(flow_6, flow_6_path)
         plotDensity(flow_7, flow_7_path)
         plotDensity(flow_8, flow_8_path)
-        plotDensity(flow_9, flow_9_path)
-        """
+        plotDensity(flow_9, flow_9_path)"""
