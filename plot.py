@@ -1,17 +1,14 @@
-import h5py
 import json
-import PIL.Image as Image
-import numpy as np
-import os
+
+import cv2
+import torch
+import torch.nn.functional as F
+from matplotlib import cm
+from torch.autograd import Variable
+from torchvision import transforms
+
 from image import *
 from model import CANNet2s
-import torch
-from torch.autograd import Variable
-import torch.nn.functional as F
-import cv2
-from matplotlib import cm
-
-from torchvision import transforms
 from variables import HEIGHT, WIDTH, PATCH_SIZE_PF, MODEL_NAME, MEAN, STD
 
 

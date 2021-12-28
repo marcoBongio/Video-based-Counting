@@ -1,21 +1,10 @@
-import math
-
-import h5py
-import PIL.Image as Image
-import numpy
-import numpy as np
-import os
 import glob
 
 import scipy.io
 import skimage
 from matplotlib import pyplot as plt
-from numpy.linalg import inv
 from scipy.ndimage.filters import gaussian_filter
-import json
-
 from skimage import transform
-from skimage.transform import warp
 
 from image import *
 from variables import HEIGHT, WIDTH

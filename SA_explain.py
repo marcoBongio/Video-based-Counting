@@ -1,17 +1,17 @@
 import argparse
 import os
-import sys
+
+import cv2
+import numpy as np
 import torch
 from PIL import Image
 from matplotlib import pyplot as plt
 from torchvision import transforms
-import numpy as np
-import cv2
 
 from SA_grad_rollout import SelfAttentionGradRollout
+from SA_rollout import SelfAttentionRollout
 from model import CANNet2s
 from variables import MODEL_NAME, WIDTH, HEIGHT, MEAN, STD
-from SA_rollout import SelfAttentionRollout
 
 
 def get_args():
@@ -102,11 +102,6 @@ if __name__ == '__main__':
 
     mask = cv2.resize(mask, (np_img.shape[1], np_img.shape[0]))
     mask = show_mask_on_image(np_img, mask)
-    """cv2.imshow("Input Image", np_img)
-    cv2.imshow(name, mask)
-    cv2.imwrite("input.png", np_img)
-    cv2.imwrite(name, mask)
-    cv2.waitKey(-1)"""
 
     fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(16, 16))
     ax1.set_title('Original')

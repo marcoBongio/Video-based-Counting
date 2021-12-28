@@ -34,14 +34,14 @@ if __name__ == '__main__':
     train_img_list = train_all_img_list[:train_num]
     val_img_list = train_all_img_list[train_num:]
 
-    """with open(output_train_all, 'w') as f:
+    with open(output_train_all, 'w') as f:
         json.dump(train_all_img_list, f)
 
     with open(output_train, 'w') as f:
         json.dump(train_img_list, f)
 
     with open(output_val, 'w') as f:
-        json.dump(val_img_list, f)"""
+        json.dump(val_img_list, f)
 
     with open(output_test, 'w') as f:
         json.dump(test_img_list, f)

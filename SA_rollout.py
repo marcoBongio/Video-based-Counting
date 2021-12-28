@@ -1,10 +1,5 @@
-import torch
-from PIL import Image
-import numpy
-import sys
-from torchvision import transforms
 import numpy as np
-import cv2
+import torch
 
 from variables import WIDTH, HEIGHT, PATCH_SIZE_PF
 

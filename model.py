@@ -1,16 +1,8 @@
 import cv2
-import torch.nn as nn
-import torch
-from fastai.layers import ConvLayer, NormType
-from torch import tensor
-from torch.nn import functional as F
-from torchvision import models
 from fastai.imports import *
 from fastai.torch_imports import *
-from fastai.torch_core import *
+from torchvision import models
 
-from SA_rollout import SelfAttentionRollout
-from utils import save_net, load_net
 from variables import BE_CHANNELS, PATCH_SIZE_PF, HEIGHT, WIDTH
 
 
@@ -119,17 +111,17 @@ class CANNet2s(nn.Module):
         self.sacnn = SelfAttention(BE_CHANNELS)
         self.sacnn2 = SelfAttention(BE_CHANNELS)
         self.sacnn3 = SelfAttention(64)
-        self.sacnn4 = SelfAttention(64)
+        self.sacnn4 = SelfAttention(64, plot=True)
 
         if not load_weights:
             mod = models.vgg16(pretrained=True)
             self._initialize_weights()
             # address the mismatch in key names for python 3
             pretrained_dict = {k[9:]: v for k, v in mod.state_dict().items() if k[9:] in self.frontend.state_dict()}
-            self.frontend.load_state_dict(pretrained_dict, strict=False)
+            self.frontend.load_state_dict(pretrained_dict)
 
     def forward(self, x_prev, x):
-        beta = 0
+        att4 = 0
         x_prev = self.frontend(x_prev)
         x = self.frontend(x)
 
@@ -150,7 +142,7 @@ class CANNet2s(nn.Module):
         x = self.output_layer(x)
         x = self.relu(x)
 
-        return x, beta
+        return x, att4
 
     def _initialize_weights(self):
         for m in self.modules():

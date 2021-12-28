@@ -51,7 +51,7 @@ summary(model, input_size=((1, 3, HEIGHT, WIDTH), (1, 3, HEIGHT, WIDTH)))
 ##MODEL_NAME = 'fdst'
 # modify the path of saved checkpoint if necessary
 checkpoint = torch.load('../models/model_best_' + MODEL_NAME + '.pth.tar', map_location='cpu')
-# checkpoint = torch.load('fdst.pth.tar', map_location='cpu')
+# checkpoint = torch.load('../fdst.pth.tar', map_location='cpu')
 
 model.load_state_dict(checkpoint['state_dict'])
 

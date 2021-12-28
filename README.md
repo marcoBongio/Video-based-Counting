@@ -41,7 +41,7 @@ python plot.py
 This will plot the flows of each direction along with the density map
 
 ## Visualization of Attention Map
-&emsp;1. Modify the "SA_explain2.py", make sure the path is correct.
+&emsp;1. Modify the "SA_explain_all.py", make sure the path is correct.
 
 &emsp;2. In command line:
 

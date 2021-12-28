@@ -1,11 +1,9 @@
-import h5py
-import PIL.Image as Image
-import numpy as np
-import os
 import glob
+import json
+
 from matplotlib import pyplot as plt
 from scipy.ndimage.filters import gaussian_filter
-import json
+
 from image import *
 from variables import HEIGHT, WIDTH
 

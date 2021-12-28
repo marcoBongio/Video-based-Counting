@@ -1,7 +1,6 @@
 import json
-from os.path import join
 import os
-import random
+from os.path import join
 
 if __name__ == '__main__':
     # root is the path to your code, which is current directory
@@ -30,7 +29,7 @@ if __name__ == '__main__':
 
     all_num = len(train_all_img_list)
     train_num = int(all_num * 0.8)
-    # random.shuffle(train_all_img_list)
+
     train_img_list = train_all_img_list[:train_num]
     val_img_list = train_all_img_list[train_num:]
 
