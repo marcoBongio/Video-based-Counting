@@ -14,7 +14,7 @@ from skimage.transform import warp
 from torchinfo import summary
 
 from image import *
-from model import CANNet2s
+from model import SACANNet2s
 import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -70,7 +70,7 @@ with open(train_all_json_path, 'r') as outfile:
 # the folder to output density map and flow maps
 output_folder = os.path.join('plot', MODEL_NAME)
 
-model = CANNet2s()
+model = SACANNet2s()
 
 model = model.cuda()
 

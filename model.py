@@ -1,9 +1,13 @@
 import cv2
+from einops import rearrange
 from fastai.imports import *
 from fastai.torch_imports import *
 from torchvision import models
 
-from variables import BE_CHANNELS, PATCH_SIZE_PF, HEIGHT, WIDTH
+from timesformer_pytorch import TimeSformer
+from TimeSformer.timesformer.models.vit import TimeSformer as FBTimeSformer
+from variables import BE_CHANNELS, PATCH_SIZE_PF, HEIGHT, WIDTH, EMBED_DIM, WIDTH_TS, HEIGHT_TS, PATCH_SIZE_TS, \
+    NUM_FRAMES, IN_CHANS, DEPTH_TS, NUM_HEADS, DIM_HEAD
 
 
 class ContextualModule(nn.Module):
@@ -108,6 +112,183 @@ class CANNet2s(nn.Module):
         self.output_layer = nn.Conv2d(64, 10, kernel_size=1)
         self.relu = nn.ReLU()
 
+        if not load_weights:
+            mod = models.vgg16(pretrained=True)
+            self._initialize_weights()
+            # address the mismatch in key names for python 3
+            pretrained_dict = {k[9:]: v for k, v in mod.state_dict().items() if k[9:] in self.frontend.state_dict()}
+            self.frontend.load_state_dict(pretrained_dict)
+
+    def forward(self, x_prev, x):
+        x_prev = self.frontend(x_prev)
+        x = self.frontend(x)
+
+        x_prev = self.context(x_prev)
+        x = self.context(x)
+
+        x = torch.cat((x_prev, x), 1)
+
+        x = self.backend(x)
+
+        x = self.output_layer(x)
+        x = self.relu(x)
+
+        return x
+
+class TSCANNet2s(nn.Module):
+    def __init__(self, load_weights=False, batch_size=1):
+        super(TSCANNet2s, self).__init__()
+        self.batch_size = batch_size
+        self.frontend_feat = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512]
+        self.frontend = make_layers(self.frontend_feat)
+
+        self.context = ContextualModule(512, 512)
+
+        self.timesformer = TimeSformer(
+            dim=EMBED_DIM,
+            num_locations=WIDTH_TS * HEIGHT_TS,
+            height=HEIGHT_TS,
+            width=WIDTH_TS,
+            patch_size=PATCH_SIZE_TS,
+            num_frames=NUM_FRAMES,
+            channels=IN_CHANS,
+            depth=DEPTH_TS,
+            heads=NUM_HEADS,
+            dim_head=DIM_HEAD,
+            attn_dropout=0.1,
+            ff_dropout=0.1,
+            rotary_emb=True)
+
+        self.output_layer = nn.Conv2d(10, 10, kernel_size=1)
+        self.relu = nn.ReLU()
+
+        self._initialize_timesformer_weights()
+        if not load_weights:
+            mod = models.vgg16(pretrained=True)
+            self._initialize_weights()
+            # address the mismatch in key names for python 3
+            pretrained_dict = {k[9:]: v for k, v in mod.state_dict().items() if k[9:] in self.frontend.state_dict()}
+            self.frontend.load_state_dict(pretrained_dict)
+
+    def forward(self, x, inverse=False):
+
+        xx = torch.FloatTensor().cuda()
+        x = rearrange(x, 'f b c h w -> b f c h w')
+        if inverse:
+            x = torch.flip(x, [1])
+
+        for i in range(x.shape[1]):
+            x_prev = self.frontend(x[:, i])
+            x_prev = self.context(x_prev)
+
+            xx = torch.cat((xx, x_prev), 0)
+
+        x = xx.unsqueeze(0)
+        # x, beta = self.timesformer(x)
+        x = self.timesformer(x)
+        x = rearrange(x, 'b fl (h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT_TS, w=WIDTH_TS)
+        # x = rearrange(x, 'b fl (h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT//16, w=WIDTH//16)
+
+        x = self.output_layer(x)
+        x = self.relu(x)
+
+        return x#, beta
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, std=0.01)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def _initialize_timesformer_weights(self):
+        for layer in self.timesformer.layers:
+            prenorm_temporal_attn: nn.Module = layer[0]
+            prenorm_temporal_attn.apply(zero)
+
+
+class FBTSCANNet2s(nn.Module):
+    def __init__(self, load_weights=False, batch_size=1):
+        super(FBTSCANNet2s, self).__init__()
+        self.batch_size = batch_size
+        self.frontend_feat = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512]
+        self.frontend = make_layers(self.frontend_feat)
+
+        self.context = ContextualModule(512, 512)
+
+        self.timesformer = FBTimeSformer(img_size=HEIGHT_TS,
+                                         num_classes=10*HEIGHT_TS*WIDTH_TS,
+                                         patch_size=PATCH_SIZE_TS,
+                                         num_frames=NUM_FRAMES,
+                                         in_chans=IN_CHANS,
+                                         embed_dim=EMBED_DIM,
+                                         depth=DEPTH_TS,
+                                         num_heads=NUM_HEADS)
+
+        self.output_layer = nn.Conv2d(10, 10, kernel_size=1)
+        self.relu = nn.ReLU()
+
+        # self._initialize_timesformer_weights()
+        if not load_weights:
+            mod = models.vgg16(pretrained=True)
+            self._initialize_weights()
+            # address the mismatch in key names for python 3
+            pretrained_dict = {k[9:]: v for k, v in mod.state_dict().items() if k[9:] in self.frontend.state_dict()}
+            self.frontend.load_state_dict(pretrained_dict)
+
+    def forward(self, x, inverse=False):
+
+        xx = torch.FloatTensor().cuda()
+        x = rearrange(x, 'f b c h w -> b f c h w')
+        if inverse:
+            x = torch.flip(x, [1])
+
+        for i in range(x.shape[1]):
+            x_prev = self.frontend(x[:, i])
+            x_prev = self.context(x_prev)
+
+            xx = torch.cat((xx, x_prev), 0)
+        x = xx.unsqueeze(0)
+        x = rearrange(x, 'b f c h w -> b c f h w')
+
+        x = self.timesformer(x)
+        x = rearrange(x, 'b (fl h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT_TS, w=WIDTH_TS)
+        # x = rearrange(x, 'b fl (h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT//16, w=WIDTH//16)
+
+        x = self.output_layer(x)
+        x = self.relu(x)
+
+        return x
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, std=0.01)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def _initialize_timesformer_weights(self):
+        for layer in self.timesformer.layers:
+            prenorm_temporal_attn: nn.Module = layer[0]
+            prenorm_temporal_attn.apply(zero)
+
+class SACANNet2s(nn.Module):
+    def __init__(self, load_weights=False):
+        super(SACANNet2s, self).__init__()
+        self.context = ContextualModule(512, 512)
+        self.frontend_feat = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512]
+        self.backend_feat = [512, 512, 512, 256, 128, 64]
+        self.frontend = make_layers(self.frontend_feat)
+        self.backend = make_layers(self.backend_feat, in_channels=BE_CHANNELS, batch_norm=True, dilation=True)
+        self.output_layer = nn.Conv2d(64, 10, kernel_size=1)
+        self.relu = nn.ReLU()
+
         self.sacnn = SelfAttention(BE_CHANNELS)
         self.sacnn2 = SelfAttention(BE_CHANNELS)
         self.sacnn3 = SelfAttention(64)
@@ -172,3 +353,10 @@ def make_layers(cfg, in_channels=3, batch_norm=False, dilation=False):
                 layers += [conv2d, nn.ReLU(inplace=True)]
             in_channels = v
     return nn.Sequential(*layers)
+
+# initialize module's weights to zero
+def zero(m):
+    if hasattr(m, 'weight') and m.weight is not None:
+        nn.init.zeros_(m.weight)
+    if hasattr(m, 'bias') and m.bias is not None:
+        nn.init.zeros_(m.bias)

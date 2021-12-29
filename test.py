@@ -10,7 +10,7 @@ import scipy
 from torchinfo import summary
 
 from image import *
-from model import CANNet2s
+from model import SACANNet2s
 import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -33,7 +33,7 @@ test_json_path = './test.json'
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
 
-model = CANNet2s()
+model = SACANNet2s()
 
 model = model.cuda()
 

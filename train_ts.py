@@ -1,28 +1,27 @@
 import math
-import os
 
 from matplotlib import pyplot as plt, cm
-from torchinfo import summary
 
-from model import SACANNet2s
-from utils import save_checkpoint
-
-import torch
-from torch import nn
-from torch.autograd import Variable
-from torchvision import datasets, transforms
-import torch.nn.functional as F
-
-import numpy as np
 import argparse
 import json
-import cv2
-import dataset
 import time
 
-from variables import HEIGHT, WIDTH, MODEL_NAME, PATCH_SIZE_PF, MEAN, STD
+import cv2
+import numpy as np
+import torch
+import torch.nn.functional as F
+from matplotlib import pyplot as plt, cm
+from torch import nn
+from torch.autograd import Variable
+from torchinfo import summary
+from torchvision import transforms
 
-parser = argparse.ArgumentParser(description='PyTorch SACANNet2s')
+import dataset_ts
+from model import FBTSCANNet2s
+from utils import save_checkpoint
+from variables import WIDTH, HEIGHT, MODEL_NAME, NUM_FRAMES, PATCH_SIZE_PF, MEAN, STD
+
+parser = argparse.ArgumentParser(description='PyTorch TSCANNet2s')
 
 parser.add_argument('train_json', metavar='TRAIN',
                     help='path to train json')
@@ -47,13 +46,12 @@ def plotDensity(density, axarr, k):
 
     axarr[k].imshow(255 * new_map.astype(np.uint8))
 
-
 def main():
     global args
 
     args = parser.parse_args()
     args.best_prec1 = 1e6
-    args.lr = 1e-4
+    args.lr = 1e-5
     args.batch_size = 1
     args.momentum = 0.95
     args.decay = 5 * 1e-4
@@ -62,7 +60,7 @@ def main():
     args.epochs = 200
     args.workers = 4
     args.seed = int(time.time())
-    args.print_freq = 1
+    args.print_freq = 100
     args.log_freg = 3600
 
     with open(args.train_json, 'r') as outfile:
@@ -72,7 +70,7 @@ def main():
 
     torch.cuda.manual_seed(args.seed)
 
-    model = SACANNet2s()
+    model = FBTSCANNet2s(load_weights=False, batch_size=args.batch_size)
 
     model = model.cuda()
 
@@ -81,7 +79,10 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), args.lr,
                                  weight_decay=args.decay)
 
-    summary(model, input_size=((args.batch_size, 3, HEIGHT, WIDTH), (args.batch_size, 3, HEIGHT, WIDTH)))
+    try:
+        summary(model, input_size=(args.batch_size, NUM_FRAMES, 3, HEIGHT, WIDTH))
+    except:
+        summary(model, input_size=(args.batch_size, 3, NUM_FRAMES, HEIGHT, WIDTH))
 
     # modify the path of saved checkpoint if necessary
     try:
@@ -124,7 +125,7 @@ def train(train_list, model, criterion, optimizer, epoch):
     data_time = AverageMeter()
 
     train_loader = torch.utils.data.DataLoader(
-        dataset.listDataset(train_list,
+        dataset_ts.listDataset(train_list,
                             shuffle=True,
                             transform=transforms.Compose([
                                 transforms.ToTensor(), transforms.Normalize(mean=MEAN,
@@ -140,25 +141,30 @@ def train(train_list, model, criterion, optimizer, epoch):
     model.train()
     end = time.time()
 
-    for i, (prev_img, img, post_img, prev_target, target, post_target) in enumerate(train_loader):
-        if i + 1 <= args.start_frame:
-            continue
+    for i, (prev_imgs, img, post_imgs, prev_target, target, post_target) in enumerate(train_loader):
+
         data_time.update(time.time() - end)
 
-        prev_img = prev_img.cuda()
-        prev_img = Variable(prev_img)
+        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
+        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
+        prev_imgs = torch.stack(prev_imgs)
 
-        img = img.cuda()
-        img = Variable(img)
+        post_imgs = [_post_img.cuda() for _post_img in post_imgs]
+        post_imgs = [Variable(_post_img) for _post_img in post_imgs]
+        post_imgs = torch.stack(post_imgs)
 
-        post_img = post_img.cuda()
-        post_img = Variable(post_img)
+        prev_flow = model(prev_imgs)
+        prev_flow_inverse = model(prev_imgs, inverse=True)
 
-        prev_flow, _ = model(prev_img, img)
-        post_flow, _ = model(img, post_img)
+        del prev_imgs
+        torch.cuda.empty_cache()
 
-        prev_flow_inverse, _ = model(img, prev_img)
-        post_flow_inverse, _ = model(post_img, img)
+        post_imgs = Variable(post_imgs, requires_grad=True)
+        post_flow = model(post_imgs)
+        post_flow_inverse = model(post_imgs, inverse=True)
+
+        del post_imgs
+        torch.cuda.empty_cache()
 
         target = target.type(torch.FloatTensor)[0].cuda()
         target = Variable(target)
@@ -340,7 +346,7 @@ def train(train_list, model, criterion, optimizer, epoch):
 def validate(val_list, model, criterion):
     print('begin val')
     val_loader = torch.utils.data.DataLoader(
-        dataset.listDataset(val_list,
+        dataset_ts.listDataset(val_list,
                             shuffle=False,
                             transform=transforms.Compose([
                                 transforms.ToTensor(), transforms.Normalize(mean=MEAN,
@@ -354,17 +360,15 @@ def validate(val_list, model, criterion):
     mae = 0.0
     mse = 0.0
 
-    for i, (prev_img, img, post_img, _, target, _) in enumerate(val_loader):
+    for i, (prev_imgs, img, post_imgs, _, target, _) in enumerate(val_loader):
         # only use previous frame in inference time, as in real-time application scenario, future frame is not available
-        prev_img = prev_img.cuda()
-        prev_img = Variable(prev_img)
-
-        img = img.cuda()
-        img = Variable(img)
+        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
+        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
+        prev_imgs = torch.stack(prev_imgs)
 
         with torch.no_grad():
-            prev_flow, _ = model(prev_img, img)
-            prev_flow_inverse, _ = model(img, prev_img)
+            prev_flow = model(prev_imgs)
+            prev_flow_inverse = model(prev_imgs, inverse=True)
 
         target = target.type(torch.FloatTensor)[0].cuda()
         target = Variable(target)

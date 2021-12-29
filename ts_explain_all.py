@@ -1,17 +1,21 @@
 import json
 import os
+import sys
 
 import cv2
 import numpy as np
 import torch
 from PIL import Image
 from matplotlib import pyplot as plt
+from torch.autograd import Variable
 from torchvision import transforms
+import numpy as np
+import cv2
 
-from SA_grad_rollout import SelfAttentionGradRollout
-from SA_rollout import SelfAttentionRollout
-from model import SACANNet2s
-from variables import MODEL_NAME, WIDTH, HEIGHT, MEAN, STD
+from model import TSCANNet2s, FBTSCANNet2s
+from ts_rollout import TSAttentionRollout
+from ts_grad_rollout import TSAttentionGradRollout
+from variables import MODEL_NAME, WIDTH, HEIGHT, MEAN, STD, NUM_FRAMES
 
 
 def show_mask_on_image(img, mask):
@@ -32,14 +36,14 @@ if __name__ == '__main__':
 
     with open(test_json_path, 'r') as outfile:
         img_paths = json.load(outfile)
-    model = SACANNet2s()
+    model = FBTSCANNet2s()
 
     model = model.cuda()
 
     # modify the path of saved checkpoint if necessary
-    checkpoint = torch.load("models/model_best_" + MODEL_NAME + '.pth.tar', map_location='cpu')
+    # checkpoint = torch.load("models/model_best_" + MODEL_NAME + '.pth.tar', map_location='cpu')
 
-    model.load_state_dict(checkpoint['state_dict'], strict=False)
+    # model.load_state_dict(checkpoint['state_dict'], strict=False)
 
     model.eval()
 
@@ -57,31 +61,36 @@ if __name__ == '__main__':
         img_folder = os.path.dirname(img_path)
         img_name = os.path.basename(img_path)
         index = int(img_name.split('.')[0])
-
-        prev_index = int(max(1, index - 5))
-
         img = Image.open(img_path).convert('RGB')
 
-        prev_img_path = os.path.join(img_folder, '%03d.jpg' % prev_index)
+        prev_imgs = []
 
-        prev_img = Image.open(prev_img_path).convert('RGB')
+        step = 1  # math.ceil(5 / (NUM_FRAMES - 1))
 
-        input_prev_img = transform(img).unsqueeze(0)
-        input_img = transform(img).unsqueeze(0)
+        for s in range(NUM_FRAMES - 1, 0, -step):
+            prev_index = int(max(1, index - s))
+            prev_img_path = os.path.join(img_folder, '%03d.jpg' % (prev_index))
+            # print(prev_img_path)
+            prev_img = Image.open(prev_img_path).convert('RGB')
+            prev_imgs.append(prev_img)
 
-        input_prev_img = input_prev_img.cuda()
-        input_img = input_img.cuda()
+        prev_imgs.append(img)
+        prev_imgs = [transform(_prev_img).cuda() for _prev_img in prev_imgs]
+        prev_imgs = [_prev_img.cuda() for _prev_img in prev_imgs]
+        prev_imgs = [Variable(_prev_img) for _prev_img in prev_imgs]
+        prev_imgs = [_prev_img.unsqueeze(0) for _prev_img in prev_imgs]
+        prev_imgs = torch.stack(prev_imgs)
 
         if category_index is None:
             print("Doing Attention Rollout")
-            attention_rollout = SelfAttentionRollout(model, head_fusion=head_fusion,
-                                                     discard_ratio=discard_ratio)
-            mask = attention_rollout(input_prev_img, input_img)
+            attention_rollout = TSAttentionRollout(model, head_fusion=head_fusion,
+                                                   discard_ratio=discard_ratio)
+            mask = attention_rollout(prev_imgs)
             name = "attention_rollout_{:.3f}_{}.png".format(discard_ratio, head_fusion)
         else:
             print("Doing Gradient Attention Rollout")
-            grad_rollout = SelfAttentionGradRollout(model, discard_ratio=discard_ratio)
-            mask = grad_rollout(input_prev_img, input_img, category_index)
+            grad_rollout = TSAttentionGradRollout(model, discard_ratio=discard_ratio)
+            mask = grad_rollout(prev_imgs, category_index)
             name = "grad_rollout_{}_{:.3f}_{}.png".format(category_index,
                                                           discard_ratio, head_fusion)
 

@@ -5,7 +5,7 @@ import torch
 from PIL import Image
 from torchvision import transforms
 
-from model import CANNet2s
+from model import SACANNet2s
 from variables import WIDTH, HEIGHT, MEAN, STD, MODEL_NAME, PATCH_SIZE_PF
 
 
@@ -67,7 +67,7 @@ transform = transforms.Compose([
     ),
 ])
 
-model = CANNet2s()
+model = SACANNet2s()
 model = model.cuda()
 
 checkpoint = torch.load('models/model_best_' + MODEL_NAME + '.pth.tar', map_location='cpu')

@@ -8,9 +8,12 @@ from timesformer_pytorch.rotary import apply_rot_emb, AxialRotaryEmbedding, Rota
 # helpers
 from variables import HEIGHT_TS, WIDTH_TS
 
+from torchvision import transforms
+
 
 def exists(val):
     return val is not None
+
 
 # classes
 
@@ -88,9 +91,10 @@ def attn(q, k, v, mask=None):
         max_neg_value = -torch.finfo(sim.dtype).max
         sim.masked_fill_(~mask, max_neg_value)
 
-    attn = sim.softmax(dim=-1)
-    out = einsum('b i j, b j d -> b i d', attn, v)
-    return out
+    attention = sim.softmax(dim=-1)
+
+    out = einsum('b i j, b j d -> b i d', attention, v)
+    return out  # , attention
 
 
 class Attention(nn.Module):
@@ -107,9 +111,9 @@ class Attention(nn.Module):
         inner_dim = dim_head * heads
 
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
+        self.attn_drop = nn.Dropout(dropout)
         self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, dim),
-            nn.Dropout(dropout)
+            nn.Linear(inner_dim, dim)
         )
 
     def forward(self, x, einops_from, einops_to, mask=None, flows_mask=None, rot_emb=None, **einops_dims):
@@ -143,7 +147,16 @@ class Attention(nn.Module):
         v_ = torch.cat((flows_v, v_), dim=1)
 
         # attention
-        out = attn(q_, k_, v_, mask=mask)
+        sim = einsum('b i d, b j d -> b i j', q_, k_)
+
+        if exists(mask):
+            max_neg_value = -torch.finfo(sim.dtype).max
+            sim.masked_fill_(~mask, max_neg_value)
+
+        attention = sim.softmax(dim=-1)
+        attention = self.attn_drop(attention)
+
+        out = einsum('b i j, b j d -> b i d', attention, v_)
 
         # merge back time or space
         out = rearrange(out, f'{einops_to} -> {einops_from}', **einops_dims)
@@ -155,7 +168,7 @@ class Attention(nn.Module):
         out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
         # print("OUT = " + str(out.shape))
         # combine heads out
-        return self.to_out(out)
+        return self.to_out(out)  # , attention
 
 
 # main classes
@@ -206,28 +219,21 @@ class TimeSformer(nn.Module):
         for _ in range(depth):
             ff = FeedForward(dim, dropout=ff_dropout)
             time_attn = Attention(dim, dim_head=dim_head, heads=heads, dropout=attn_dropout)
-            # spatial_attn = Attention(dim, dim_head=dim_head, heads=heads, dropout=attn_dropout)
+            spatial_attn = Attention(dim, dim_head=dim_head, heads=heads, dropout=attn_dropout)
 
-            """if shift_tokens:
+            if shift_tokens:
                 time_attn, spatial_attn, ff = map(lambda t: PreTokenShift(num_frames, t), (time_attn, spatial_attn, ff))
 
             time_attn, spatial_attn, ff = map(lambda t: PreNorm(dim, t), (time_attn, spatial_attn, ff))
-            
-            self.layers.append(nn.ModuleList([time_attn, spatial_attn, ff]))"""
 
-            if shift_tokens:
-                time_attn, ff = map(lambda t: PreTokenShift(num_frames, t), (time_attn, ff))
-
-            time_attn, ff = map(lambda t: PreNorm(dim, t), (time_attn, ff))
-
-            self.layers.append(nn.ModuleList([time_attn, ff]))
+            self.layers.append(nn.ModuleList([time_attn, spatial_attn, ff]))
 
         self.to_out = nn.Sequential(
             nn.LayerNorm(dim),
-            #nn.Dropout(0.5),
+            # nn.Dropout(0.5),
             nn.Linear(dim, num_locations)
-            #nn.Linear(dim, BE_CHANNELS)
-            #nn.ReLU()
+            # nn.Linear(dim, BE_CHANNELS)
+            # nn.ReLU()
         )
 
     def forward(self, video, mask=None):
@@ -275,10 +281,12 @@ class TimeSformer(nn.Module):
 
         # time and space attention
 
-        for (time_attn, ff) in self.layers: #spatial_attn, ff) in self.layers:
-            x = time_attn(x, 'b (f n) d', '(b n) f d', n=n, mask=frame_mask, flows_mask=flows_attn_mask,
-                          rot_emb=frame_pos_emb) + x
-            # x = spatial_attn(x, 'b (f n) d', '(b f) n d', f=f, flows_mask=flows_attn_mask, rot_emb=image_pos_emb) + x
+        for (time_attn, spatial_attn, ff) in self.layers:
+            x_tmp = time_attn(x, 'b (f n) d', '(b n) f d', n=n, mask=frame_mask, flows_mask=flows_attn_mask,
+                              rot_emb=frame_pos_emb)
+            x = x_tmp + x
+            x_tmp = spatial_attn(x, 'b (f n) d', '(b f) n d', f=f, flows_mask=flows_attn_mask, rot_emb=image_pos_emb)
+            x = x_tmp + x
             x = ff(x) + x
 
         flows_tokens = x[:, :10]
