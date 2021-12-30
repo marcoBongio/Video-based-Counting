@@ -41,9 +41,9 @@ if __name__ == '__main__':
     model = model.cuda()
 
     # modify the path of saved checkpoint if necessary
-    # checkpoint = torch.load("models/model_best_" + MODEL_NAME + '.pth.tar', map_location='cpu')
+    checkpoint = torch.load("models/model_best_" + MODEL_NAME + '.pth.tar', map_location='cpu')
 
-    # model.load_state_dict(checkpoint['state_dict'], strict=False)
+    model.load_state_dict(checkpoint['state_dict'], strict=False)
 
     model.eval()
 
@@ -55,8 +55,9 @@ if __name__ == '__main__':
         transforms.Normalize(mean=MEAN, std=STD),
     ])
 
-    for i in range(0, len(img_paths), 150):
+    for i in range(0, len(img_paths)):
         img_path = img_paths[i]
+        print(img_path)
         print(str(i) + "/" + str(len(img_paths)))
         img_folder = os.path.dirname(img_path)
         img_name = os.path.basename(img_path)
@@ -65,7 +66,7 @@ if __name__ == '__main__':
 
         prev_imgs = []
 
-        step = 1  # math.ceil(5 / (NUM_FRAMES - 1))
+        step = 1
 
         for s in range(NUM_FRAMES - 1, 0, -step):
             prev_index = int(max(1, index - s))

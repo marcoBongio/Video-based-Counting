@@ -9,7 +9,7 @@ from torch.autograd import Variable
 from torchvision import transforms
 
 from image import *
-from model import TSCANNet2s
+from model import TSCANNet2s, FBTSCANNet2s
 from variables import HEIGHT, WIDTH, PATCH_SIZE_PF, MODEL_NAME, MEAN, STD, NUM_FRAMES
 
 
@@ -51,7 +51,7 @@ output_folder = os.path.join('plot', MODEL_NAME)
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
 
-model = TSCANNet2s()
+model = FBTSCANNet2s()
 
 model = model.cuda()
 

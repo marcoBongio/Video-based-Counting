@@ -227,6 +227,7 @@ class FBTSCANNet2s(nn.Module):
                                          embed_dim=EMBED_DIM,
                                          depth=DEPTH_TS,
                                          num_heads=NUM_HEADS)
+                                         #attention_type='joint_space_time')
 
         self.output_layer = nn.Conv2d(10, 10, kernel_size=1)
         self.relu = nn.ReLU()

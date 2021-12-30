@@ -11,7 +11,7 @@ import scipy
 from matplotlib import pyplot as plt
 
 from image import *
-from model import TSCANNet2s
+from model import TSCANNet2s, FBTSCANNet2s
 import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -35,7 +35,7 @@ test_json_path = './test.json'
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
 
-model = TSCANNet2s()
+model = FBTSCANNet2s()
 
 model = model.cuda()
 

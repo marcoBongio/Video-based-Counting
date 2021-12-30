@@ -66,5 +66,5 @@ class TSAttentionRollout:
         self.attentions = []
         with torch.no_grad():
             output = self.model(input_tensor)
-        print(self.attentions)
+
         return rollout(self.attentions[1::2], self.discard_ratio, self.head_fusion)

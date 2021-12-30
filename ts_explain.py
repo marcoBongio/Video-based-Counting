@@ -11,7 +11,7 @@ from torchvision import transforms
 import numpy as np
 import cv2
 
-from model import TSCANNet2s
+from model import TSCANNet2s, FBTSCANNet2s
 from ts_rollout import TSAttentionRollout
 from ts_grad_rollout import TSAttentionGradRollout
 from variables import MODEL_NAME, WIDTH, HEIGHT, MEAN, STD, NUM_FRAMES
@@ -51,7 +51,7 @@ def show_mask_on_image(img, mask):
 
 if __name__ == '__main__':
     args = get_args()
-    model = TSCANNet2s()
+    model = FBTSCANNet2s()
 
     model = model.cuda()
 
