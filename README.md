@@ -50,7 +50,7 @@ python SA_explain2.py
 
 ``` 
 This will plot the attention map of one frame for each scene.
-The SA_explain.py and plot_attention_maps.py can be used to plot a single selected frame
+The SA_explain.py can be used to plot a single selected frame
 
 
 ## Pre-trained Model
