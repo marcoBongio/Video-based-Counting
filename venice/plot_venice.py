@@ -1,28 +1,18 @@
-import PIL
-import h5py
 import json
-import PIL.Image as Image
-import matplotlib.pyplot as plt
-import numpy as np
-import os
 
-import numpy.ma
+import cv2
 import scipy.io
 import skimage
-from numpy import ma
+import torch
+import torch.nn.functional as F
+from matplotlib import cm
 from skimage.transform import warp
+from torch.autograd import Variable
 from torchinfo import summary
+from torchvision import transforms
 
 from image import *
 from model import SACANNet2s
-import torch
-from torch.autograd import Variable
-import torch.nn.functional as F
-import cv2
-from matplotlib import cm
-from torchgeometry.core import HomographyWarper
-
-from torchvision import transforms
 from variables import HEIGHT, WIDTH, PATCH_SIZE_PF, MODEL_NAME, MEAN, STD
 
 
@@ -56,16 +46,10 @@ transform = transforms.Compose([
 ])
 
 # the json file contains path of test images
-test_json_path = 'venice/test.json'
-train_all_json_path = 'venice/train_all.json'
+test_json_path = 'test.json'
 
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
-
-with open(train_all_json_path, 'r') as outfile:
-    img_paths.extend(json.load(outfile))
-
-# MODEL_NAME = 'fdst'
 
 # the folder to output density map and flow maps
 output_folder = os.path.join('plot', MODEL_NAME)
@@ -77,8 +61,7 @@ model = model.cuda()
 summary(model, input_size=((1, 3, HEIGHT, WIDTH), (1, 3, HEIGHT, WIDTH)))
 
 # modify the path of saved checkpoint if necessary
-checkpoint = torch.load('../models/model_best_' + MODEL_NAME + '.pth.tar', map_location='cpu')
-# checkpoint = torch.load('fdst.pth.tar', map_location='cpu')
+checkpoint = torch.load('models/model_best_' + MODEL_NAME + '.pth.tar', map_location='cpu')
 
 model.load_state_dict(checkpoint['state_dict'])
 
@@ -121,11 +104,9 @@ for i in range(len(img_paths)):
         mat_path = prev_img_path.replace('.jpg', '.mat').replace('images', 'ground-truth')
         prev_mat = scipy.io.loadmat(mat_path)
         prev_roi = skimage.transform.resize(prev_mat['roi'], (HEIGHT, WIDTH), order=0)
-        prev_hom = prev_mat['homograph']
     except:
         prev_img = img
         prev_roi = roi
-        prev_hom = hom
 
     prev_img = prev_img.resize((WIDTH, HEIGHT))
     img = img.resize((WIDTH, HEIGHT))
@@ -138,12 +119,6 @@ for i in range(len(img_paths)):
 
     prev_img = prev_img * torch.FloatTensor(prev_roi).cuda()
     img = img * torch.FloatTensor(roi).cuda()
-
-    plt.imshow(255 * roi.astype('uint8'))
-    plt.show()
-
-    plt.imshow(img.cpu().permute(1, 2, 0).numpy().astype('uint8'))
-    plt.show()
 
     gt_path = img_path.replace('.jpg', '_resize.h5')
     gt_file = h5py.File(gt_path)
@@ -159,8 +134,8 @@ for i in range(len(img_paths)):
     prev_img = prev_img.unsqueeze(0)
 
     with torch.no_grad():
-        prev_flow, _ = model(prev_img, img)
-        prev_flow_inverse, _ = model(img, prev_img)
+        prev_flow = model(prev_img, img)
+        prev_flow_inverse = model(img, prev_img)
 
     mask_boundry = torch.zeros(prev_flow.shape[2:])
     mask_boundry[0, :] = 1.0

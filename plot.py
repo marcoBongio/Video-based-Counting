@@ -107,8 +107,8 @@ with torch.no_grad():
         prev_img = prev_img.unsqueeze(0)
 
         with torch.no_grad():
-            prev_flow, _ = model(prev_img, img)
-            prev_flow_inverse, _ = model(img, prev_img)
+            prev_flow = model(prev_img, img)
+            prev_flow_inverse = model(img, prev_img)
 
         mask_boundry = torch.zeros(prev_flow.shape[2:])
         mask_boundry[0, :] = 1.0

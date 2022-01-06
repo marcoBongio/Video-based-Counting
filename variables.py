@@ -1,12 +1,16 @@
 # CAN parameters
-WIDTH = 320
-HEIGHT = 320
+WIDTH = 640
+HEIGHT = 360
 PATCH_SIZE_PF = 8
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
-BE_CHANNELS = 1024
+MODE = 'concat'
+if MODE == 'concat':
+    BE_CHANNELS = 1024
+elif MODE == 'weighted':
+    BE_CHANNELS = 512
 
-MODEL_NAME = "fbts_320_7200_4f"
+MODEL_NAME = "4sacnn_cat_mse"
 
 # TimeSformer parameters
 WIDTH_TS = WIDTH // PATCH_SIZE_PF

@@ -1,13 +1,11 @@
-import cv2
 from einops import rearrange
-from fastai.imports import *
 from fastai.torch_imports import *
 from torchvision import models
 
-from timesformer_pytorch import TimeSformer
 from TimeSformer.timesformer.models.vit import TimeSformer as FBTimeSformer
-from variables import BE_CHANNELS, PATCH_SIZE_PF, HEIGHT, WIDTH, EMBED_DIM, WIDTH_TS, HEIGHT_TS, PATCH_SIZE_TS, \
-    NUM_FRAMES, IN_CHANS, DEPTH_TS, NUM_HEADS, DIM_HEAD
+from timesformer_pytorch import TimeSformer
+from variables import BE_CHANNELS, EMBED_DIM, WIDTH_TS, HEIGHT_TS, PATCH_SIZE_TS, \
+    NUM_FRAMES, IN_CHANS, DEPTH_TS, NUM_HEADS, DIM_HEAD, MODE
 
 
 class ContextualModule(nn.Module):
@@ -41,20 +39,67 @@ class ContextualModule(nn.Module):
         return self.relu(bottle)
 
 
+class FeatureFusionModel(nn.Module):
+    def __init__(self, mode, img_feat_dim, txt_feat_dim, common_space_dim):
+        super().__init__()
+        self.mode = mode
+        if mode == 'concat':
+            pass  # TODO
+        elif mode == 'weighted':
+            self.alphas = nn.Sequential(
+                nn.Linear(img_feat_dim + txt_feat_dim, 512),
+                nn.ReLU(),
+                nn.Dropout(p=0.1),
+                nn.Linear(512, 2))
+            self.img_proj = nn.Linear(img_feat_dim, common_space_dim)
+            self.txt_proj = nn.Linear(txt_feat_dim, common_space_dim)
+            self.post_process = nn.Sequential(
+                nn.Linear(common_space_dim, common_space_dim),
+                nn.ReLU(),
+                nn.Dropout(p=0.1),
+                nn.Linear(common_space_dim, common_space_dim)
+            )
+
+    def forward(self, img_feat, txt_feat):
+        if self.mode == 'concat':
+            out_feat = torch.cat((img_feat, txt_feat), 1)
+            return out_feat
+        elif self.mode == 'weighted':
+            b, c, h, w = img_feat.shape
+            img_feat = rearrange(img_feat, 'b c h w -> (b h w) c')
+            txt_feat = rearrange(txt_feat, 'b c h w -> (b h w) c')
+            concat_feat = torch.cat((img_feat, txt_feat), dim=1)
+            alphas = torch.sigmoid(self.alphas(concat_feat))  # B x 2
+            img_feat_norm = F.normalize(self.img_proj(img_feat), p=2, dim=1)
+            txt_feat_norm = F.normalize(self.txt_proj(txt_feat), p=2, dim=1)
+            out_feat = img_feat_norm * alphas[:, 0].unsqueeze(1) + txt_feat_norm * alphas[:, 1].unsqueeze(1)
+            out_feat = self.post_process(out_feat)
+            out_feat = rearrange(out_feat, '(b h w) c -> b c h w', b=b, h=h, w=w)
+
+            return out_feat
+
+
+class BMM(nn.Module):
+    def __init__(self):
+        super(BMM, self).__init__()
+
+    def forward(self, q, k):
+        return torch.bmm(q, k)
+
+
 class SelfAttention(nn.Module):
     " Self attention Layer"
 
-    def __init__(self, in_dim, activation='relu', plot=False):
+    def __init__(self, in_dim, activation='relu'):
         super(SelfAttention, self).__init__()
         self.channel_in = in_dim
         self.activation = activation
-        self.plot = plot
 
         self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
         self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
         self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
         self.gamma = nn.Parameter(torch.zeros(1))
-
+        self.bmm = BMM()
         self.softmax = nn.Softmax(dim=1)  #
 
     def forward(self, x):
@@ -68,7 +113,7 @@ class SelfAttention(nn.Module):
         m_batchsize, C, width, height = x.size()
         proj_query = self.query_conv(x).view(m_batchsize, -1, width * height).permute(0, 2, 1)  # B X CX(N)
         proj_key = self.key_conv(x).view(m_batchsize, -1, width * height)  # B X C x (*W*H)
-        energy = torch.bmm(proj_query, proj_key)  # transpose check
+        energy = self.bmm(proj_query, proj_key)  # transpose check
         attention = self.softmax(energy)  # BX (N) X (N)
         proj_value = self.value_conv(x).view(m_batchsize, -1, width * height)  # B X C X N
 
@@ -76,29 +121,8 @@ class SelfAttention(nn.Module):
         out = out.view(m_batchsize, C, width, height)
 
         out = self.gamma * out + x
-        if self.plot:
-            residual_att = torch.eye(attention.size(1)).cuda()
-            aug_att_mat = attention + residual_att
-            aug_att_mat = aug_att_mat / aug_att_mat.sum(dim=-1).unsqueeze(-1)
 
-            # Recursively multiply the weight matrices
-            joint_attentions = torch.zeros(aug_att_mat.size())
-            joint_attentions[0] = aug_att_mat[0]
-
-            for n in range(1, aug_att_mat.size(0)):
-                joint_attentions[n] = torch.matmul(aug_att_mat[n], joint_attentions[n - 1])
-
-            v = joint_attentions[-1]
-            grid_height = HEIGHT // PATCH_SIZE_PF
-            grid_width = WIDTH // PATCH_SIZE_PF
-            mask = v[0, :].reshape(grid_height, grid_width).detach().numpy()
-            mask = cv2.resize(mask / mask.max(), (WIDTH, HEIGHT))[..., np.newaxis]
-
-            # print(mask)
-            plt.imshow(mask)
-            plt.show()
-
-        return out, attention
+        return out
 
 
 class CANNet2s(nn.Module):
@@ -134,6 +158,17 @@ class CANNet2s(nn.Module):
         x = self.relu(x)
 
         return x
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, std=0.01)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
 
 class TSCANNet2s(nn.Module):
     def __init__(self, load_weights=False, batch_size=1):
@@ -192,7 +227,7 @@ class TSCANNet2s(nn.Module):
         x = self.output_layer(x)
         x = self.relu(x)
 
-        return x#, beta
+        return x  # , beta
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -220,14 +255,14 @@ class FBTSCANNet2s(nn.Module):
         self.context = ContextualModule(512, 512)
 
         self.timesformer = FBTimeSformer(img_size=HEIGHT_TS,
-                                         num_classes=10*HEIGHT_TS*WIDTH_TS,
+                                         num_classes=HEIGHT_TS * WIDTH_TS * 10,
                                          patch_size=PATCH_SIZE_TS,
                                          num_frames=NUM_FRAMES,
                                          in_chans=IN_CHANS,
                                          embed_dim=EMBED_DIM,
                                          depth=DEPTH_TS,
                                          num_heads=NUM_HEADS)
-                                         #attention_type='joint_space_time')
+        # attention_type='joint_space_time')
 
         self.output_layer = nn.Conv2d(10, 10, kernel_size=1)
         self.relu = nn.ReLU()
@@ -257,7 +292,6 @@ class FBTSCANNet2s(nn.Module):
 
         x = self.timesformer(x)
         x = rearrange(x, 'b (fl h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT_TS, w=WIDTH_TS)
-        # x = rearrange(x, 'b fl (h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT//16, w=WIDTH//16)
 
         x = self.output_layer(x)
         x = self.relu(x)
@@ -279,6 +313,7 @@ class FBTSCANNet2s(nn.Module):
             prenorm_temporal_attn: nn.Module = layer[0]
             prenorm_temporal_attn.apply(zero)
 
+
 class SACANNet2s(nn.Module):
     def __init__(self, load_weights=False):
         super(SACANNet2s, self).__init__()
@@ -290,10 +325,12 @@ class SACANNet2s(nn.Module):
         self.output_layer = nn.Conv2d(64, 10, kernel_size=1)
         self.relu = nn.ReLU()
 
+        self.FMM = FeatureFusionModel(mode=MODE, img_feat_dim=512, txt_feat_dim=512, common_space_dim=512)
+
         self.sacnn = SelfAttention(BE_CHANNELS)
         self.sacnn2 = SelfAttention(BE_CHANNELS)
         self.sacnn3 = SelfAttention(64)
-        self.sacnn4 = SelfAttention(64, plot=True)
+        self.sacnn4 = SelfAttention(64)
 
         if not load_weights:
             mod = models.vgg16(pretrained=True)
@@ -303,28 +340,25 @@ class SACANNet2s(nn.Module):
             self.frontend.load_state_dict(pretrained_dict)
 
     def forward(self, x_prev, x):
-        att4 = 0
         x_prev = self.frontend(x_prev)
         x = self.frontend(x)
 
         x_prev = self.context(x_prev)
         x = self.context(x)
 
-        x = torch.cat((x_prev, x), 1)
-        # x = (x_prev + x) / 2.0
-
-        x, att1 = self.sacnn(x)
-        x, att2 = self.sacnn2(x)
+        x = self.FMM(x_prev, x)
+        x = self.sacnn(x)
+        x = self.sacnn2(x)
 
         x = self.backend(x)
 
-        x, att3 = self.sacnn3(x)
-        x, att4 = self.sacnn4(x)
+        x = self.sacnn3(x)
+        x = self.sacnn4(x)
 
         x = self.output_layer(x)
         x = self.relu(x)
 
-        return x, att4
+        return x
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -354,6 +388,7 @@ def make_layers(cfg, in_channels=3, batch_norm=False, dilation=False):
                 layers += [conv2d, nn.ReLU(inplace=True)]
             in_channels = v
     return nn.Sequential(*layers)
+
 
 # initialize module's weights to zero
 def zero(m):

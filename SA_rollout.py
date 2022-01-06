@@ -36,13 +36,13 @@ def rollout(attentions, discard_ratio, head_fusion):
     # In case of 224x224 image, this brings us from 196 to 14
     width = WIDTH // PATCH_SIZE_PF
     height = HEIGHT // PATCH_SIZE_PF
-    mask = mask.reshape(height, width).numpy()
+    mask = mask.reshape(width, height).numpy()
     mask = mask / np.max(mask)
     return mask
 
 
 class SelfAttentionRollout:
-    def __init__(self, model, attention_layer_name='softmax', head_fusion="mean",
+    def __init__(self, model, attention_layer_name='bmm', head_fusion="mean",
                  discard_ratio=0.9):
         self.model = model
         self.head_fusion = head_fusion

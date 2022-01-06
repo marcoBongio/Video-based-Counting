@@ -1,17 +1,16 @@
-import math
 import os
-from PIL import Image
-import numpy as np
-import h5py
+
 import cv2
+import h5py
+import numpy as np
+from PIL import Image
 
 from variables import PATCH_SIZE_PF, HEIGHT, WIDTH, NUM_FRAMES
 
 
-def load_data(img_path, train=True):
+def load_data(img_path):
     img_folder = os.path.dirname(img_path)
     img_name = os.path.basename(img_path)
-    # print(img_path)
     index = int(img_name.split('.')[0])
 
     img = Image.open(img_path).convert('RGB')
@@ -20,12 +19,11 @@ def load_data(img_path, train=True):
     prev_imgs = []
     post_imgs = []
 
-    step = 1 # math.ceil(5 / (NUM_FRAMES - 1))
+    step = 1
 
     for i in range(NUM_FRAMES - 1, 0, -step):
         prev_index = int(max(1, index - i))
         prev_img_path = os.path.join(img_folder, '%03d.jpg' % (prev_index))
-        # print(prev_img_path)
         prev_img = Image.open(prev_img_path).convert('RGB')
         prev_img = prev_img.resize((WIDTH, HEIGHT))
         prev_imgs.append(prev_img)
@@ -36,7 +34,6 @@ def load_data(img_path, train=True):
     for i in range(1, NUM_FRAMES, step):
         post_index = int(min(150, index + i))
         post_img_path = os.path.join(img_folder, '%03d.jpg' % (post_index))
-        # print(post_img_path)
         post_img = Image.open(post_img_path).convert('RGB')
         post_img = post_img.resize((WIDTH, HEIGHT))
         post_imgs.append(post_img)
@@ -47,11 +44,11 @@ def load_data(img_path, train=True):
     gt_file.close()
     target = cv2.resize(target, (int(target.shape[1] / PATCH_SIZE_PF), int(target.shape[0] / PATCH_SIZE_PF)),
                         interpolation=cv2.INTER_CUBIC) * (PATCH_SIZE_PF ** 2)
-    # print(np.sum(target))
+
 
     last_prev_index = int(max(1, index - (NUM_FRAMES - 1)))
     last_prev_img_path = os.path.join(img_folder, '%03d.jpg' % last_prev_index)
-    # print(last_prev_img_path)
+
     prev_gt_path = last_prev_img_path.replace('.jpg', '_resize.h5')
 
     prev_gt_file = h5py.File(prev_gt_path)
@@ -63,7 +60,7 @@ def load_data(img_path, train=True):
 
     last_post_index = int(min(150, index + (NUM_FRAMES - 1)))
     last_post_img_path = os.path.join(img_folder, '%03d.jpg' % last_post_index)
-    # print(last_post_img_path)
+
     post_gt_path = last_post_img_path.replace('.jpg', '_resize.h5')
 
     post_gt_file = h5py.File(post_gt_path)

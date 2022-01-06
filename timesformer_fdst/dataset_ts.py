@@ -26,7 +26,7 @@ class listDataset(Dataset):
 
         img_path = self.lines[index]
 
-        prev_imgs, img, post_imgs, prev_target, target, post_target = load_data(img_path, self.train)
+        prev_imgs, img, post_imgs, prev_target, target, post_target = load_data(img_path)
 
         if self.transform is not None:
             for i in range(len(prev_imgs)):

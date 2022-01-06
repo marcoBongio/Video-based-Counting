@@ -8,7 +8,6 @@ from PIL import Image
 from matplotlib import pyplot as plt
 from torchvision import transforms
 
-from SA_grad_rollout import SelfAttentionGradRollout
 from SA_rollout import SelfAttentionRollout
 from model import SACANNet2s
 from variables import MODEL_NAME, WIDTH, HEIGHT, MEAN, STD
@@ -26,7 +25,6 @@ def show_mask_on_image(img, mask):
 if __name__ == '__main__':
     head_fusion = 'mean'
     discard_ratio = 0.9
-    category_index = None
     # json file contains the test images
     test_json_path = './test.json'
 
@@ -72,21 +70,15 @@ if __name__ == '__main__':
         input_prev_img = input_prev_img.cuda()
         input_img = input_img.cuda()
 
-        if category_index is None:
-            print("Doing Attention Rollout")
-            attention_rollout = SelfAttentionRollout(model, head_fusion=head_fusion,
-                                                     discard_ratio=discard_ratio)
-            mask = attention_rollout(input_prev_img, input_img)
-            name = "attention_rollout_{:.3f}_{}.png".format(discard_ratio, head_fusion)
-        else:
-            print("Doing Gradient Attention Rollout")
-            grad_rollout = SelfAttentionGradRollout(model, discard_ratio=discard_ratio)
-            mask = grad_rollout(input_prev_img, input_img, category_index)
-            name = "grad_rollout_{}_{:.3f}_{}.png".format(category_index,
-                                                          discard_ratio, head_fusion)
+        print("Doing Attention Rollout")
+        attention_rollout = SelfAttentionRollout(model, head_fusion=head_fusion,
+                                                 discard_ratio=discard_ratio)
+        mask = attention_rollout(input_prev_img, input_img)
+        name = "attention_rollout_{:.3f}_{}.png".format(discard_ratio, head_fusion)
+
 
         np_img = np.array(img)[:, :, ::-1]
-
+        mask = np.transpose(mask)
         mask = cv2.resize(mask, (np_img.shape[1], np_img.shape[0]))
         mask = show_mask_on_image(np_img, mask)
 

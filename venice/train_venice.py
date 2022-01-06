@@ -13,7 +13,7 @@ from torch.autograd import Variable
 from torchinfo import summary
 from torchvision import transforms
 
-import dataset
+import dataset_venice as dataset
 from model import SACANNet2s
 from utils import save_checkpoint
 from variables import HEIGHT, WIDTH, MODEL_NAME, PATCH_SIZE_PF, MEAN, STD
@@ -54,12 +54,10 @@ def main():
     args.momentum = 0.95
     args.decay = 5 * 1e-4
     args.start_epoch = 0
-    args.start_frame = 0
     args.epochs = 200
     args.workers = 4
     args.seed = int(time.time())
-    args.print_freq = 1
-    args.log_freg = 3600
+    args.print_freq = 10
 
     with open(args.train_json, 'r') as outfile:
         args.train_list = json.load(outfile)
@@ -86,7 +84,6 @@ def main():
         optimizer.load_state_dict(checkpoint['optimizer'])
         print(optimizer)
         args.start_epoch = checkpoint['epoch']
-        args.start_frame = checkpoint['start_frame']
         try:
             args.best_prec1 = checkpoint['best_prec'].item()
         except:
@@ -102,12 +99,10 @@ def main():
 
         is_best = prec1 < args.best_prec1
         args.best_prec1 = min(prec1, args.best_prec1)
-        args.start_frame = 0
         print(' * best MSE {mse:.3f} '
               .format(mse=args.best_prec1))
         save_checkpoint({
             'epoch': epoch + 1,
-            'start_frame': 0,
             'state_dict': model.state_dict(),
             'optimizer': optimizer.state_dict(),
             'best_prec': args.best_prec1
@@ -123,32 +118,21 @@ def train(train_list, model, criterion, optimizer, epoch):
         dataset.listDataset(train_list,
                             shuffle=True,
                             transform=transforms.Compose([
-                                transforms.ToTensor(), transforms.Normalize(mean=MEAN,
-                                                                            std=STD),
+                                transforms.Normalize(mean=MEAN,
+                                                     std=STD),
                             ]),
                             train=True,
                             batch_size=args.batch_size,
                             num_workers=args.workers),
         batch_size=args.batch_size)
     print('epoch %d, processed %d samples, lr %.10f' % (
-        epoch, epoch * len(train_loader.dataset) + args.start_frame, args.lr))
+        epoch, epoch * len(train_loader.dataset), args.lr))
 
     model.train()
     end = time.time()
 
     for i, (prev_img, img, post_img, prev_target, target, post_target) in enumerate(train_loader):
-        if i + 1 <= args.start_frame:
-            continue
         data_time.update(time.time() - end)
-
-        prev_img = prev_img.cuda()
-        prev_img = Variable(prev_img)
-
-        img = img.cuda()
-        img = Variable(img)
-
-        post_img = post_img.cuda()
-        post_img = Variable(post_img)
 
         prev_flow = model(prev_img, img)
         post_flow = model(img, post_img)
@@ -317,21 +301,6 @@ def train(train_list, model, criterion, optimizer, epoch):
                 epoch, i + 1, len(train_loader), batch_time=batch_time,
                 data_time=data_time, loss=losses))
 
-        if ((i + 1) % args.log_freg == 0) & ((i + 1) != len(train_loader)):
-            prec1 = validate(args.val_list, model, criterion)
-
-            is_best = prec1 < args.best_prec1
-            args.best_prec1 = min(prec1, args.best_prec1)
-            print(' * best MSE {mse:.3f} '
-                  .format(mse=args.best_prec1))
-            save_checkpoint({
-                'epoch': epoch,
-                'start_frame': i + 1,
-                'state_dict': model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'best_prec': args.best_prec1
-            }, is_best)
-
 
 def validate(val_list, model, criterion):
     print('begin val')
@@ -339,8 +308,8 @@ def validate(val_list, model, criterion):
         dataset.listDataset(val_list,
                             shuffle=False,
                             transform=transforms.Compose([
-                                transforms.ToTensor(), transforms.Normalize(mean=MEAN,
-                                                                            std=STD),
+                                transforms.Normalize(mean=MEAN,
+                                                     std=STD),
                             ]),
                             train=False),
         batch_size=args.batch_size)
@@ -352,11 +321,6 @@ def validate(val_list, model, criterion):
 
     for i, (prev_img, img, post_img, _, target, _) in enumerate(val_loader):
         # only use previous frame in inference time, as in real-time application scenario, future frame is not available
-        prev_img = prev_img.cuda()
-        prev_img = Variable(prev_img)
-
-        img = img.cuda()
-        img = Variable(img)
 
         with torch.no_grad():
             prev_flow = model(prev_img, img)

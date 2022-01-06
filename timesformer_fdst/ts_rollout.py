@@ -1,28 +1,31 @@
-import torch
-from PIL import Image
-import numpy
-import sys
-from torchvision import transforms
 import numpy as np
-import cv2
+import torch
 
 from variables import NUM_FRAMES
 
 
 def rollout(attentions, discard_ratio, head_fusion):
+    # result = torch.eye(attentions[0].size(-1) - 10)
     result = torch.eye(attentions[0].size(-1))
     with torch.no_grad():
         for attention in attentions:
             #attention = attention[:, :, 10:]
             if head_fusion == "mean":
+                # attention_heads_fused = attention.mean(axis=0)
                 attention_heads_fused = attention.mean(axis=1)
+                #attention_heads_fused = attention_heads_fused.mean(axis=0)
             elif head_fusion == "max":
+                #attention_heads_fused = attention.max(axis=0)[0]
                 attention_heads_fused = attention.max(axis=1)[0]
+                #attention_heads_fused = attention_heads_fused.max(axis=0)[0]
             elif head_fusion == "min":
+                # attention_heads_fused = attention.min(axis=0)[0]
                 attention_heads_fused = attention.min(axis=1)[0]
+                #attention_heads_fused = attention_heads_fused.min(axis=0)[0]
             else:
                 raise "Attention head fusion type Not supported"
 
+            #attention_heads_fused = attention_heads_fused[:, 10:]
             attention_heads_fused = attention_heads_fused[NUM_FRAMES-1, :, :]
             # Drop the lowest attentions, but
             # don't drop the class token
@@ -39,6 +42,8 @@ def rollout(attentions, discard_ratio, head_fusion):
 
     # Look at the total attention between the class token,
     # and the image patches
+    # mask = result[0, 10:]
+    # mask = result[0, 0, 1:]
     mask = result[0, 1:]
     # In case of 224x224 image, this brings us from 196 to 14
     width = int(mask.size(-1) ** 0.5)

@@ -1,29 +1,11 @@
-import math
-
-import h5py
-import PIL.Image as Image
-import numpy
-import numpy as np
-import os
 import glob
 
-import scipy.io
-import skimage
 import torch
 from matplotlib import pyplot as plt
-from numpy.linalg import inv
 from scipy.ndimage.filters import gaussian_filter
-import json
-
-from skimage import transform
-from skimage.transform import warp
 
 from image import *
 from variables import HEIGHT, WIDTH
-import joint
-import pose
-
-# x = torch.load('../../JTA-Dataset/poses/test/seq_256/1.data')
 
 # set the root to the path of Venice dataset you download
 root = '../../JTA-Dataset/poses/'
@@ -53,9 +35,6 @@ for pose_path in pose_paths:
     img_path = pose_path.replace('poses', 'frames').replace('.data', '.jpg')
     img = plt.imread(img_path)
 
-    # plt.imshow(img)
-    # plt.show()
-
     k = np.zeros((HEIGHT, WIDTH))
     rate_h = img.shape[0] / HEIGHT
     rate_w = img.shape[1] / WIDTH
@@ -65,9 +44,6 @@ for pose_path in pose_paths:
             x_anno = min(int(gt_list[i][0].pos2d[0] / rate_w), WIDTH - 1)
             k[y_anno, x_anno] = 1
     k = gaussian_filter(k, 3)
-
-    # plt.imshow(k)
-    # plt.show()
 
     with h5py.File(img_path.replace('.jpg', '_resize.h5'), 'w') as hf:
         hf['density'] = k

@@ -1,27 +1,14 @@
 import csv
-import math
-
-import h5py
 import json
-import PIL.Image as Image
-import numpy as np
-import os
-import glob
-import scipy
-from matplotlib import pyplot as plt
 
-from image import *
-from model import TSCANNet2s, FBTSCANNet2s
 import torch
-from torch.autograd import Variable
 import torch.nn.functional as F
-from PIL import Image
-import cv2
-import scipy.stats as st
-
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+from torch.autograd import Variable
 from torchvision import transforms
 
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from image import *
+from model import FBTSCANNet2s
 from variables import HEIGHT, WIDTH, MODEL_NAME, MEAN, STD, NUM_FRAMES
 
 transform = transforms.Compose([
@@ -30,7 +17,7 @@ transform = transforms.Compose([
 ])
 
 # the json file contains path of test images
-test_json_path = './test.json'
+test_json_path = 'test.json'
 
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
@@ -142,7 +129,7 @@ results = zip(errs, gt, pred)
 header = ["Error", "GT", "Prediction"]
 
 try:
-    os.mkdir(os.path.dirname("results/"))
+    os.mkdir(os.path.dirname("../results/"))
 except:
     pass
 

@@ -1,14 +1,12 @@
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from torch import nn, einsum
 
 from timesformer_pytorch.rotary import apply_rot_emb, AxialRotaryEmbedding, RotaryEmbedding
-# helpers
-from variables import HEIGHT_TS, WIDTH_TS
 
-from torchvision import transforms
+
+# helpers
 
 
 def exists(val):
