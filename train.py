@@ -58,7 +58,7 @@ def main():
     args.epochs = 200
     args.workers = 4
     args.seed = int(time.time())
-    args.print_freq = 1
+    args.print_freq = 600
     args.log_freg = 3600
 
     with open(args.train_json, 'r') as outfile:

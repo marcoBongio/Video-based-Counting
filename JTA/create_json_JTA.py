@@ -1,6 +1,7 @@
 import json
 import os
 from os.path import join
+import random
 
 if __name__ == '__main__':
     # root is the path to your code, which is current directory
@@ -32,6 +33,18 @@ if __name__ == '__main__':
         for file_name in files:
             if file_name.endswith('.jpg'):
                 val_img_list.append(join(root, file_name))
+
+    train_num = 9000
+    random.shuffle(train_img_list)
+    train_img_list = train_img_list[:train_num]
+
+    val_num = 3600
+    random.shuffle(val_img_list)
+    val_img_list = val_img_list[:val_num]
+
+    test_num = 7200
+    random.shuffle(test_img_list)
+    test_img_list = test_img_list[:test_num]
 
     with open(output_train, 'w') as f:
         json.dump(train_img_list, f)

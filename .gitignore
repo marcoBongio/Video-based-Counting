@@ -2,3 +2,5 @@
 .idea/*
 *.tar
 *.pyc
+test_data/*
+train_data/*

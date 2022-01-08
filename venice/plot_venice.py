@@ -5,7 +5,7 @@ import scipy.io
 import skimage
 import torch
 import torch.nn.functional as F
-from matplotlib import cm
+from matplotlib import cm, pyplot as plt
 from skimage.transform import warp
 from torch.autograd import Variable
 from torchinfo import summary
@@ -119,6 +119,13 @@ for i in range(len(img_paths)):
 
     prev_img = prev_img * torch.FloatTensor(prev_roi).cuda()
     img = img * torch.FloatTensor(roi).cuda()
+
+    """
+    plt.imshow(255 * roi.astype('uint8'))
+    plt.show()
+
+    plt.imshow(img.cpu().permute(1, 2, 0).numpy().astype('uint8'))
+    plt.show()"""
 
     gt_path = img_path.replace('.jpg', '_resize.h5')
     gt_file = h5py.File(gt_path)

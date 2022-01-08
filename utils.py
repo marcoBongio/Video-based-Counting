@@ -1,3 +1,5 @@
+import os
+
 import h5py
 import numpy as np
 import torch
@@ -22,4 +24,8 @@ def load_net(fname, net):
 def save_checkpoint(state, is_best, filename='models/checkpoint_' + MODEL_NAME + '.pth.tar'):
     torch.save(state, filename)
     if is_best:
+        try:
+            os.mkdir(os.path.dirname('models/'))
+        except:
+            pass
         shutil.copyfile(filename, 'models/model_best_' + MODEL_NAME + '.pth.tar')

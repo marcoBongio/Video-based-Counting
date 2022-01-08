@@ -57,7 +57,7 @@ def main():
     args.epochs = 200
     args.workers = 4
     args.seed = int(time.time())
-    args.print_freq = 10
+    args.print_freq = 80
 
     with open(args.train_json, 'r') as outfile:
         args.train_list = json.load(outfile)
@@ -133,6 +133,9 @@ def train(train_list, model, criterion, optimizer, epoch):
 
     for i, (prev_img, img, post_img, prev_target, target, post_target) in enumerate(train_loader):
         data_time.update(time.time() - end)
+
+        """plt.imshow(img.squeeze(0).cpu().permute(1, 2, 0).numpy().astype('uint8'))
+        plt.show()"""
 
         prev_flow = model(prev_img, img)
         post_flow = model(img, post_img)
@@ -282,7 +285,7 @@ def train(train_list, model, criterion, optimizer, epoch):
             print("loss_prev_consistency = " + str(loss_prev_consistency))
             print("loss_post_consistency = " + str(loss_post_consistency))
 
-            pred = cv2.resize(overall, (overall.shape[1] * PATCH_SIZE_PF, overall.shape[0] * PATCH_SIZE_PF),
+            """pred = cv2.resize(overall, (overall.shape[1] * PATCH_SIZE_PF, overall.shape[0] * PATCH_SIZE_PF),
                               interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
 
             target = cv2.resize(target.cpu().detach().numpy(),
@@ -291,7 +294,7 @@ def train(train_list, model, criterion, optimizer, epoch):
             fig, axarr = plt.subplots(1, 2)
             plotDensity(pred, axarr, 0)
             plotDensity(target, axarr, 1)
-            plt.show()
+            plt.show()"""
 
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'

@@ -1,6 +1,7 @@
 import math
 import os
 
+import matplotlib.pyplot as plt
 import scipy.io
 import skimage
 import torch
@@ -24,7 +25,11 @@ def load_data(img_path):
     index = int(img_name.split('.')[0])
 
     prev_index = int(max(4896000060, index - 60))
+    if prev_index == 4896001080:  # handle missing 4896_001080.jpg image
+        prev_index = 4896001140
     post_index = int(min(4896004860, index + 60))
+    if post_index == 4896001080:  # handle missing 4896_001080.jpg image
+        post_index = 4896001140
 
     prev_index = str(prev_index)[:4] + "_" + str(prev_index)[4:]
     prev_img_path = os.path.join(img_folder, prev_index + '.jpg')
