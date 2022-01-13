@@ -58,7 +58,7 @@ def main():
     args.epochs = 200
     args.workers = 4
     args.seed = int(time.time())
-    args.print_freq = 600
+    args.print_freq = 100
     args.log_freg = 3600
 
     with open(args.train_json, 'r') as outfile:
@@ -68,7 +68,7 @@ def main():
 
     torch.cuda.manual_seed(args.seed)
 
-    model = SACANNet2s()
+    model = SACANNet2s(load_weights=True, fine_tuning=True)
 
     model = model.cuda()
 
@@ -138,6 +138,8 @@ def train(train_list, model, criterion, optimizer, epoch):
 
     for i, (prev_img, img, post_img, prev_target, target, post_target) in enumerate(train_loader):
         if i + 1 <= args.start_frame:
+            if (i + 1) % args.print_freq == 0:
+                print(i + 1)
             continue
         data_time.update(time.time() - end)
 

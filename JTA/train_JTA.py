@@ -138,6 +138,8 @@ def train(train_list, model, criterion, optimizer, epoch):
 
     for i, (prev_img, img, post_img, prev_target, target, post_target) in enumerate(train_loader):
         if i + 1 <= args.start_frame:
+            if (i + 1) % args.print_freq == 0:
+                print(i + 1)
             continue
         data_time.update(time.time() - end)
 

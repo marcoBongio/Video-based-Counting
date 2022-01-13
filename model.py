@@ -44,7 +44,7 @@ class FeatureFusionModel(nn.Module):
         super().__init__()
         self.mode = mode
         if mode == 'concat':
-            pass  # TODO
+            pass
         elif mode == 'weighted':
             self.alphas = nn.Sequential(
                 nn.Linear(img_feat_dim + txt_feat_dim, 512),
@@ -315,7 +315,7 @@ class FBTSCANNet2s(nn.Module):
 
 
 class SACANNet2s(nn.Module):
-    def __init__(self, load_weights=False):
+    def __init__(self, load_weights=False, fine_tuning=False):
         super(SACANNet2s, self).__init__()
         self.context = ContextualModule(512, 512)
         self.frontend_feat = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512]
@@ -338,6 +338,10 @@ class SACANNet2s(nn.Module):
             # address the mismatch in key names for python 3
             pretrained_dict = {k[9:]: v for k, v in mod.state_dict().items() if k[9:] in self.frontend.state_dict()}
             self.frontend.load_state_dict(pretrained_dict)
+
+        if fine_tuning:
+            model_best_JTA = torch.load('JTA/models/model_best_4sacnn_concat_mse_JTA.pth.tar', map_location='cpu')
+            self.load_state_dict(model_best_JTA['state_dict'])
 
     def forward(self, x_prev, x):
         x_prev = self.frontend(x_prev)
