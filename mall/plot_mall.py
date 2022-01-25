@@ -8,7 +8,7 @@ from torch.autograd import Variable
 from torchvision import transforms
 
 from image import *
-from model import SACANNet2s
+from model import SACANNet2s, CANNet2s
 from variables import HEIGHT, WIDTH, PATCH_SIZE_PF, MODEL_NAME, MEAN, STD
 
 
@@ -50,11 +50,11 @@ output_folder = os.path.join('plot', MODEL_NAME)
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
 
-model = SACANNet2s()
+model = CANNet2s()
 
 model = model.cuda()
 
-checkpoint = torch.load('models/model_best_' + MODEL_NAME + '.pth.tar', map_location='cpu')
+checkpoint = torch.load('../models/model_best_' + MODEL_NAME + '.pth.tar', map_location='cpu')
 
 model.load_state_dict(checkpoint['state_dict'])
 
@@ -75,13 +75,15 @@ except:
 
 for i in range(0, len(img_paths), 150):
     img_path = img_paths[i]
-
+    print(str(i) + "/" + str(len(img_paths)))
     img_folder = os.path.dirname(img_path)
     img_name = os.path.basename(img_path)
-    index = int(img_name.split('.')[0])
+    index = img_name.split('.')[0]
+    index = int(index.split('_')[1])
 
     prev_index = int(max(1, index - 5))
-    prev_img_path = os.path.join(img_folder, '%03d.jpg' % (prev_index))
+
+    prev_img_path = os.path.join(img_folder, 'seq_%06d.jpg' % (prev_index))
 
     prev_img = Image.open(prev_img_path).convert('RGB')
     img = Image.open(img_path).convert('RGB')

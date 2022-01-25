@@ -1,14 +1,16 @@
 import json
 
 import cv2
+import scipy.io
+import skimage
 import torch
 import torch.nn.functional as F
-from matplotlib import cm
+from matplotlib import cm, pyplot as plt
 from torch.autograd import Variable
 from torchvision import transforms
 
 from image import *
-from model import SACANNet2s
+from model import SACANNet2s, CANNet2s
 from variables import HEIGHT, WIDTH, PATCH_SIZE_PF, MODEL_NAME, MEAN, STD
 
 
@@ -54,7 +56,7 @@ model = SACANNet2s()
 
 model = model.cuda()
 
-checkpoint = torch.load('models/model_best_' + MODEL_NAME + '.pth.tar', map_location='cpu')
+checkpoint = torch.load('../models/model_best_' + MODEL_NAME + '.pth.tar', map_location='cpu')
 
 model.load_state_dict(checkpoint['state_dict'])
 
@@ -73,15 +75,21 @@ try:
 except:
     pass
 
+root = '../../ucsdpeds/'
+
 for i in range(0, len(img_paths), 150):
     img_path = img_paths[i]
-
+    print(str(i) + "/" + str(len(img_paths)))
     img_folder = os.path.dirname(img_path)
     img_name = os.path.basename(img_path)
-    index = int(img_name.split('.')[0])
+    # print(img_path)
+    index = img_name.split('.')[0]
+    index = int(index.split('f')[-1])
 
     prev_index = int(max(1, index - 5))
-    prev_img_path = os.path.join(img_folder, '%03d.jpg' % (prev_index))
+    base_name = img_folder.split('/')[-1]
+    base_name = base_name.split('.y')[0]
+    prev_img_path = os.path.join(img_folder, base_name + '_f%03d.png' % (prev_index))
 
     prev_img = Image.open(prev_img_path).convert('RGB')
     img = Image.open(img_path).convert('RGB')
@@ -92,7 +100,21 @@ for i in range(0, len(img_paths), 150):
     prev_img = transform(prev_img).cuda()
     img = transform(img).cuda()
 
-    gt_path = img_path.replace('.jpg', '_resize.h5')
+    roi_path = os.path.join(root, 'vidf-cvpr/vidf1_33_roi_mainwalkway.mat')
+    roi = scipy.io.loadmat(roi_path)['roi'][0]
+    roi = roi.item(0)[-1]
+    roi = skimage.transform.resize(roi, (HEIGHT, WIDTH), order=0)
+
+    prev_img = prev_img * torch.FloatTensor(roi).cuda()
+    img = img * torch.FloatTensor(roi).cuda()
+
+    """plt.imshow(255 * roi.astype('uint8'))
+    plt.show()
+
+    plt.imshow(img.cpu().permute(1, 2, 0).numpy().astype('uint8'))
+    plt.show()"""
+
+    gt_path = img_path.replace('.png', '_resize.h5')
     gt_file = h5py.File(gt_path)
     target = np.asarray(gt_file['density'])
 
@@ -134,9 +156,9 @@ for i in range(0, len(img_paths), 150):
     print(base_name)
     folder_name = os.path.dirname(img_path).split('/')[-1]
     print(folder_name)
-    gt_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_gt.jpg')
+    gt_path = os.path.join(output_folder, folder_name, base_name).replace('.png', '_gt.png')
     print(gt_path)
-    density_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_pred.jpg')
+    density_path = os.path.join(output_folder, folder_name, base_name).replace('.png', '_pred.png')
     """flow_1_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_1.jpg')
     flow_2_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_2.jpg')
     flow_3_path = os.path.join(output_folder, folder_name, base_name).replace('.jpg', '_flow_3.jpg')

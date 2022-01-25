@@ -20,21 +20,21 @@ transform = transforms.Compose([
 ])
 
 # the json file contains path of test images
-test_json_path = 'test.json'
+test_json_path = './test.json'
 
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
 
-model = CANNet2s()
+model = SACANNet2s()
 
 model = model.cuda()
 
 summary(model, input_size=((1, 3, HEIGHT, WIDTH), (1, 3, HEIGHT, WIDTH)))
 
 # modify the path of saved checkpoint if necessary
-checkpoint = torch.load('../models/model_best_' + MODEL_NAME + '.pth.tar', map_location='cpu')
+checkpoint = torch.load("../models/model_best_" + MODEL_NAME + '.pth.tar', map_location='cpu')
 
-model.load_state_dict(checkpoint['state_dict'])
+model.load_state_dict(checkpoint['state_dict'], strict=True)
 
 model.eval()
 
@@ -46,14 +46,14 @@ game = 0
 for i in range(len(img_paths)):
     img_path = img_paths[i]
     print(str(i) + "/" + str(len(img_paths)))
-    print(img_path)
     img_folder = os.path.dirname(img_path)
     img_name = os.path.basename(img_path)
-    index = int(img_name.split('.')[0])
+    index = img_name.split('.')[0]
+    index = int(index.split('_')[1])
 
     prev_index = int(max(1, index - 5))
 
-    prev_img_path = os.path.join(img_folder, str(prev_index) + '.jpg')
+    prev_img_path = os.path.join(img_folder, 'seq_%06d.jpg' % (prev_index))
 
     prev_img = Image.open(prev_img_path).convert('RGB')
     img = Image.open(img_path).convert('RGB')
@@ -67,6 +67,9 @@ for i in range(len(img_paths)):
     gt_path = img_path.replace('.jpg', '_resize.h5')
     gt_file = h5py.File(gt_path)
     target = np.asarray(gt_file['density'])
+    # print(np.sum(target))
+    # target = cv2.resize(target, (int(target.shape[1] / 8), int(target.shape[0] / 8)),
+    #                   interpolation=cv2.INTER_CUBIC) * 64
 
     prev_img = prev_img.cuda()
     prev_img = Variable(prev_img)

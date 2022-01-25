@@ -42,7 +42,7 @@ if __name__ == '__main__':
     random.shuffle(val_img_list)
     val_img_list = val_img_list[:val_num]
 
-    test_num = 7200
+    test_num = 6000
     random.shuffle(test_img_list)
     test_img_list = test_img_list[:test_num]
 

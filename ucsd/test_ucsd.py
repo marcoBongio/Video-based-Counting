@@ -2,6 +2,8 @@ import csv
 import json
 
 import cv2
+import scipy.io
+import skimage
 import torch
 import torch.nn.functional as F
 from sklearn.metrics import mean_squared_error, mean_absolute_error
@@ -20,7 +22,7 @@ transform = transforms.Compose([
 ])
 
 # the json file contains path of test images
-test_json_path = 'test.json'
+test_json_path = './test.json'
 
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
@@ -32,9 +34,9 @@ model = model.cuda()
 summary(model, input_size=((1, 3, HEIGHT, WIDTH), (1, 3, HEIGHT, WIDTH)))
 
 # modify the path of saved checkpoint if necessary
-checkpoint = torch.load('../models/model_best_' + MODEL_NAME + '.pth.tar', map_location='cpu')
+checkpoint = torch.load("../models/model_best_" + MODEL_NAME + '.pth.tar', map_location='cpu')
 
-model.load_state_dict(checkpoint['state_dict'])
+model.load_state_dict(checkpoint['state_dict'], strict=True)
 
 model.eval()
 
@@ -42,18 +44,21 @@ pred = []
 gt = []
 errs = []
 game = 0
+root = '../../ucsdpeds/'
 
 for i in range(len(img_paths)):
     img_path = img_paths[i]
     print(str(i) + "/" + str(len(img_paths)))
-    print(img_path)
     img_folder = os.path.dirname(img_path)
     img_name = os.path.basename(img_path)
-    index = int(img_name.split('.')[0])
+    # print(img_path)
+    index = img_name.split('.')[0]
+    index = int(index.split('f')[-1])
 
     prev_index = int(max(1, index - 5))
-
-    prev_img_path = os.path.join(img_folder, str(prev_index) + '.jpg')
+    base_name = img_folder.split('/')[-1]
+    base_name = base_name.split('.y')[0]
+    prev_img_path = os.path.join(img_folder, base_name + '_f%03d.png' % (prev_index))
 
     prev_img = Image.open(prev_img_path).convert('RGB')
     img = Image.open(img_path).convert('RGB')
@@ -64,7 +69,15 @@ for i in range(len(img_paths)):
     prev_img = transform(prev_img).cuda()
     img = transform(img).cuda()
 
-    gt_path = img_path.replace('.jpg', '_resize.h5')
+    roi_path = os.path.join(root, 'vidf-cvpr/vidf1_33_roi_mainwalkway.mat')
+    roi = scipy.io.loadmat(roi_path)['roi'][0]
+    roi = roi.item(0)[-1]
+    roi = skimage.transform.resize(roi, (HEIGHT, WIDTH), order=0)
+
+    prev_img = prev_img * torch.FloatTensor(roi).cuda()
+    img = img * torch.FloatTensor(roi).cuda()
+
+    gt_path = img_path.replace('.png', '_resize.h5')
     gt_file = h5py.File(gt_path)
     target = np.asarray(gt_file['density'])
 
