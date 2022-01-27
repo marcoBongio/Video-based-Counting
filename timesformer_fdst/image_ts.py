@@ -21,17 +21,14 @@ def load_data(img_path):
 
     step = 1
 
-    for i in range(NUM_FRAMES - 1, 0, -step):
-        prev_index = int(max(1, index - i))
+    for i in range(NUM_FRAMES, 0, -step):
+        prev_index = int(max(1, index - i - 1))
         prev_img_path = os.path.join(img_folder, '%03d.jpg' % (prev_index))
         prev_img = Image.open(prev_img_path).convert('RGB')
         prev_img = prev_img.resize((WIDTH, HEIGHT))
         prev_imgs.append(prev_img)
 
-    prev_imgs.append(img)
-
-    post_imgs.append(img)
-    for i in range(1, NUM_FRAMES, step):
+    for i in range(0, NUM_FRAMES, step):
         post_index = int(min(150, index + i))
         post_img_path = os.path.join(img_folder, '%03d.jpg' % (post_index))
         post_img = Image.open(post_img_path).convert('RGB')

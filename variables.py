@@ -10,7 +10,7 @@ if MODE == 'concat':
 elif MODE == 'weighted':
     BE_CHANNELS = 512
 
-MODEL_NAME = "4sacnn_cat_mse"
+MODEL_NAME = "timesformer_640x320_3frames_1layer_no-spatial-att"
 
 # TimeSformer parameters
 WIDTH_TS = WIDTH // PATCH_SIZE_PF
