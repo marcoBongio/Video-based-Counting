@@ -2,7 +2,6 @@ from einops import rearrange
 from fastai.torch_imports import *
 from torchvision import models
 
-from TimeSformer.timesformer.models.vit import TimeSformer as FBTimeSformer
 from timesformer_pytorch import TimeSformer
 from variables import BE_CHANNELS, EMBED_DIM, WIDTH_TS, HEIGHT_TS, PATCH_SIZE_TS, \
     NUM_FRAMES, IN_CHANS, DEPTH_TS, NUM_HEADS, DIM_HEAD, MODE
@@ -219,15 +218,13 @@ class TSCANNet2s(nn.Module):
             xx = torch.cat((xx, x_prev), 0)
 
         x = xx.unsqueeze(0)
-        # x, beta = self.timesformer(x)
         x = self.timesformer(x)
         x = rearrange(x, 'b fl (h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT_TS, w=WIDTH_TS)
-        # x = rearrange(x, 'b fl (h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT//16, w=WIDTH//16)
 
         x = self.output_layer(x)
         x = self.relu(x)
 
-        return x  # , beta
+        return x
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -245,29 +242,34 @@ class TSCANNet2s(nn.Module):
             prenorm_temporal_attn.apply(zero)
 
 
-class FBTSCANNet2s(nn.Module):
+class FETSCANNet2s(nn.Module):
     def __init__(self, load_weights=False, batch_size=1):
-        super(FBTSCANNet2s, self).__init__()
+        super(FETSCANNet2s, self).__init__()
         self.batch_size = batch_size
         self.frontend_feat = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512]
         self.frontend = make_layers(self.frontend_feat)
 
         self.context = ContextualModule(512, 512)
 
-        self.timesformer = FBTimeSformer(img_size=HEIGHT_TS,
-                                         num_classes=HEIGHT_TS * WIDTH_TS * 10,
-                                         patch_size=PATCH_SIZE_TS,
-                                         num_frames=NUM_FRAMES,
-                                         in_chans=IN_CHANS,
-                                         embed_dim=EMBED_DIM,
-                                         depth=DEPTH_TS,
-                                         num_heads=NUM_HEADS)
-        # attention_type='joint_space_time')
+        self.timesformer = TimeSformer(
+            dim=EMBED_DIM,
+            num_locations=WIDTH_TS * HEIGHT_TS,
+            height=HEIGHT_TS,
+            width=WIDTH_TS,
+            patch_size=PATCH_SIZE_TS,
+            num_frames=NUM_FRAMES,
+            channels=IN_CHANS,
+            depth=DEPTH_TS,
+            heads=NUM_HEADS,
+            dim_head=DIM_HEAD,
+            attn_dropout=0.1,
+            ff_dropout=0.1,
+            rotary_emb=True)
 
         self.output_layer = nn.Conv2d(10, 10, kernel_size=1)
         self.relu = nn.ReLU()
 
-        # self._initialize_timesformer_weights()
+        self._initialize_timesformer_weights()
         if not load_weights:
             mod = models.vgg16(pretrained=True)
             self._initialize_weights()
@@ -276,22 +278,10 @@ class FBTSCANNet2s(nn.Module):
             self.frontend.load_state_dict(pretrained_dict)
 
     def forward(self, x, inverse=False):
-
-        xx = torch.FloatTensor().cuda()
-        x = rearrange(x, 'f b c h w -> b f c h w')
         if inverse:
             x = torch.flip(x, [1])
-
-        for i in range(x.shape[1]):
-            x_prev = self.frontend(x[:, i])
-            x_prev = self.context(x_prev)
-
-            xx = torch.cat((xx, x_prev), 0)
-        x = xx.unsqueeze(0)
-        x = rearrange(x, 'b f c h w -> b c f h w')
-
         x = self.timesformer(x)
-        x = rearrange(x, 'b (fl h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT_TS, w=WIDTH_TS)
+        x = rearrange(x, 'b fl (h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT_TS, w=WIDTH_TS)
 
         x = self.output_layer(x)
         x = self.relu(x)

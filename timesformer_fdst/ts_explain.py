@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from torch.autograd import Variable
 from torchvision import transforms
 
-from model import FBTSCANNet2s
+from model import TSCANNet2s
 from ts_rollout import TSAttentionRollout
 from variables import MODEL_NAME, WIDTH, HEIGHT, MEAN, STD, NUM_FRAMES
 
@@ -18,7 +18,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--use_cuda', action='store_true', default=False,
                         help='Use NVIDIA GPU acceleration')
-    parser.add_argument('--img_path', type=str, default='./examples/both.png',
+    parser.add_argument('--img_path', type=str, default='../test_data/90/023.jpg',
                         help='Input image path')
     parser.add_argument('--head_fusion', type=str, default='mean',
                         help='How to fuse the attention heads for attention rollout. \
@@ -46,7 +46,7 @@ def show_mask_on_image(img, mask):
 
 if __name__ == '__main__':
     args = get_args()
-    model = FBTSCANNet2s()
+    model = TSCANNet2s()
 
     # modify the path of saved checkpoint if necessary
     checkpoint = torch.load("../models/model_best_" + MODEL_NAME + '.pth.tar', map_location='cpu')

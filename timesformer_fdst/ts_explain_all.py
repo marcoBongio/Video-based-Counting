@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from torch.autograd import Variable
 from torchvision import transforms
 
-from model import FBTSCANNet2s
+from model import TSCANNet2s
 from ts_rollout import TSAttentionRollout
 from variables import MODEL_NAME, WIDTH, HEIGHT, MEAN, STD, NUM_FRAMES
 
@@ -33,7 +33,7 @@ if __name__ == '__main__':
     with open(test_json_path, 'r') as outfile:
         img_paths = json.load(outfile)
 
-    model = FBTSCANNet2s()
+    model = TSCANNet2s()
 
     # modify the path of saved checkpoint if necessary
     checkpoint = torch.load("../models/model_best_" + MODEL_NAME + '.pth.tar', map_location='cpu')

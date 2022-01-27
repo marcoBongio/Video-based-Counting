@@ -92,7 +92,7 @@ def attn(q, k, v, mask=None):
     attention = sim.softmax(dim=-1)
 
     out = einsum('b i j, b j d -> b i d', attention, v)
-    return out  # , attention
+    return out
 
 
 class Attention(nn.Module):
@@ -135,10 +135,9 @@ class Attention(nn.Module):
             q_, k_ = apply_rot_emb(q_, k_, rot_emb)
 
         # expand flows token keys and values across time or space and concat
-        # print(q_.shape)
-        # print(flows_k.shape)
+
         r = q_.shape[0] // flows_k.shape[0]
-        # print(r)
+
         flows_k, flows_v = map(lambda t: repeat(t, 'b (f) d -> (b r) (f) d', r=r), (flows_k, flows_v))
 
         k_ = torch.cat((flows_k, k_), dim=1)
@@ -164,7 +163,7 @@ class Attention(nn.Module):
 
         # merge back the heads
         out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
-        # print("OUT = " + str(out.shape))
+
         # combine heads out
         return self.to_out(out)  # , attention
 
@@ -228,10 +227,7 @@ class TimeSformer(nn.Module):
 
         self.to_out = nn.Sequential(
             nn.LayerNorm(dim),
-            # nn.Dropout(0.5),
             nn.Linear(dim, num_locations)
-            # nn.Linear(dim, BE_CHANNELS)
-            # nn.ReLU()
         )
 
     def forward(self, video, mask=None):

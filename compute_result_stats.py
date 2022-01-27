@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import csv
 import scipy.stats as st
@@ -58,10 +60,16 @@ print("Maximum = " + str(np.max(pred)) + "\n")
 plt.hist(pred)
 plt.show()
 
+test_json_path = './test.json'
+
+with open(test_json_path, 'r') as outfile:
+    img_paths = json.load(outfile)
+
+indexes = list(range(len(errs)))
 # print error|GT|prediction in reverse order according to the error
-print("Error \t | Ground-Truth \t | Prediction")
-errs, gt, pred = zip(*sorted(zip(errs, gt, pred), reverse=True))
+print("Image \t | Error \t | Ground-Truth \t | Prediction")
+errs, gt, pred, indexes = zip(*sorted(zip(errs, gt, pred, indexes), reverse=False))
 for i in range(len(errs)):
-    print(errs[i], "|", gt[i], "| ", pred[i])
+    print(img_paths[indexes[i]], errs[i], "|", gt[i], "| ", pred[i])
 
 

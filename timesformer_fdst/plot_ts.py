@@ -50,7 +50,7 @@ output_folder = os.path.join('plot', MODEL_NAME)
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
 
-model = FBTSCANNet2s()
+model = TSCANNet2s()
 
 model = model.cuda()
 

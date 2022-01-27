@@ -4,3 +4,4 @@
 *.pyc
 test_data/*
 train_data/*
+plot/*
