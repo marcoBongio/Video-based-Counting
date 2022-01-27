@@ -122,13 +122,13 @@ class Attention(nn.Module):
         q = q * self.scale
 
         # splice out flows tokens at index 10
-        (flows_q, q_), (flows_k, k_), (flows_v, v_) = map(lambda t: (t[:, :10], t[:, 10:]), (q, k, v))
+        # (flows_q, q_), (flows_k, k_), (flows_v, v_) = map(lambda t: (t[:, :10], t[:, 10:]), (q, k, v))
 
         # let flows tokens attend to key / values of all patches across time and space
-        flows_out = attn(flows_q, k, v, mask=flows_mask)
+        # flows_out = attn(flows_q, k, v, mask=flows_mask)
 
         # rearrange across time or space
-        q_, k_, v_ = map(lambda t: rearrange(t, f'{einops_from} -> {einops_to}', **einops_dims), (q_, k_, v_))
+        q_, k_, v_ = map(lambda t: rearrange(t, f'{einops_from} -> {einops_to}', **einops_dims), (q, k, v))
 
         # add rotary embeddings, if applicable
         if exists(rot_emb):
@@ -137,12 +137,12 @@ class Attention(nn.Module):
         # expand flows token keys and values across time or space and concat
         # print(q_.shape)
         # print(flows_k.shape)
-        r = q_.shape[0] // flows_k.shape[0]
+        # r = q_.shape[0] // flows_k.shape[0]
         # print(r)
-        flows_k, flows_v = map(lambda t: repeat(t, 'b (f) d -> (b r) (f) d', r=r), (flows_k, flows_v))
+        # flows_k, flows_v = map(lambda t: repeat(t, 'b (f) d -> (b r) (f) d', r=r), (flows_k, flows_v))
 
-        k_ = torch.cat((flows_k, k_), dim=1)
-        v_ = torch.cat((flows_v, v_), dim=1)
+        # k_ = torch.cat((flows_k, k_), dim=1)
+        # v_ = torch.cat((flows_v, v_), dim=1)
 
         # attention
         sim = einsum('b i d, b j d -> b i j', q_, k_)
@@ -160,7 +160,7 @@ class Attention(nn.Module):
         out = rearrange(out, f'{einops_to} -> {einops_from}', **einops_dims)
 
         # concat back the flows token
-        out = torch.cat((flows_out, out), dim=1)
+        # out = torch.cat((flows_out, out), dim=1)
 
         # merge back the heads
         out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
@@ -203,7 +203,7 @@ class TimeSformer(nn.Module):
         self.heads = heads
         self.patch_size = patch_size
         self.patch_embed = nn.Linear(patch_dim, dim)
-        self.flows_tokens = nn.Parameter(torch.randn(10, dim))
+        # self.flows_tokens = nn.Parameter(torch.randn(10, dim))
         # print(self.flows_tokens.shape)
 
         self.use_rotary_emb = rotary_emb
@@ -252,8 +252,8 @@ class TimeSformer(nn.Module):
 
         # add flows tokens
 
-        flows_tokens = repeat(self.flows_tokens, 'n d -> b n d', b=b)
-        x = torch.cat((flows_tokens, tokens), dim=1)
+        # flows_tokens = repeat(self.flows_tokens, 'n d -> b n d', b=b)
+        x = tokens # torch.cat((flows_tokens, tokens), dim=1)
 
         # positional embedding
 
@@ -287,10 +287,6 @@ class TimeSformer(nn.Module):
             x = x_tmp + x
             x = ff(x) + x
 
-        flows_tokens = x[:, :10]
-        out = self.to_out(flows_tokens)
-
-        del tokens, video, x, flows_tokens
-        torch.cuda.empty_cache()
-
-        return out
+        x = rearrange(x, 'b (f n) d -> b f n d', f=f, n=n)
+        x = x[:, 0, ...]    # get the spatial locations at t=0 as final representations
+        return x

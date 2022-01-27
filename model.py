@@ -194,7 +194,10 @@ class TSCANNet2s(nn.Module):
             ff_dropout=0.1,
             rotary_emb=True)
 
-        self.output_layer = nn.Conv2d(10, 10, kernel_size=1)
+        self.backend_feat = [512, 512, 512, 256, 128, 64]
+        self.backend = make_layers(self.backend_feat, in_channels=EMBED_DIM, batch_norm=True, dilation=True)
+
+        self.output_layer = nn.Conv2d(64, 10, kernel_size=1)
         self.relu = nn.ReLU()
 
         self._initialize_timesformer_weights()
@@ -218,11 +221,15 @@ class TSCANNet2s(nn.Module):
 
             xx = torch.cat((xx, x_prev), 0)
 
+        fin_h, fin_w = xx.shape[2:]
         x = xx.unsqueeze(0)
+
         # x, beta = self.timesformer(x)
         x = self.timesformer(x)
-        x = rearrange(x, 'b fl (h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT_TS, w=WIDTH_TS)
+        x = rearrange(x, 'b (h w) d -> b d h w', b=self.batch_size, h=fin_h//PATCH_SIZE_TS, w=fin_w//PATCH_SIZE_TS)
         # x = rearrange(x, 'b fl (h w) -> b fl h w', b=self.batch_size, fl=10, h=HEIGHT//16, w=WIDTH//16)
+
+        x = self.backend(x)
 
         x = self.output_layer(x)
         x = self.relu(x)

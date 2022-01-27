@@ -50,7 +50,7 @@ output_folder = os.path.join('plot', MODEL_NAME)
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
 
-model = FBTSCANNet2s()
+model = TSCANNet2s(load_weights=False, batch_size=1)
 
 model = model.cuda()
 
@@ -89,7 +89,7 @@ for i in range(0, len(img_paths), 150):
 
     prev_imgs = []
 
-    step = math.ceil(5 / (NUM_FRAMES - 1))
+    step = 1 #math.ceil(5 / (NUM_FRAMES - 1))
 
     for s in range(NUM_FRAMES - 1, 0, -step):
         prev_index = int(max(1, index - s))
@@ -109,7 +109,7 @@ for i in range(0, len(img_paths), 150):
 
     with torch.no_grad():
         prev_flow = model(prev_imgs)
-        prev_flow_inverse = model(prev_imgs, inverse=True)
+        # prev_flow_inverse = model(prev_imgs, inverse=True)
 
     mask_boundry = torch.zeros(prev_flow.shape[2:])
     mask_boundry[0, :] = 1.0
@@ -127,10 +127,10 @@ for i in range(0, len(img_paths), 150):
         prev_flow[0, 7, :-1, :], (0, 0, 1, 0)) + F.pad(prev_flow[0, 8, :-1, :-1], (1, 0, 1, 0)) + prev_flow[0, 9, :,
                                                                                                   :] * mask_boundry
 
-    reconstruction_from_prev_inverse = torch.sum(prev_flow_inverse[0, :9, :, :], dim=0) + prev_flow_inverse[0, 9, :,
-                                                                                          :] * mask_boundry
+    # reconstruction_from_prev_inverse = torch.sum(prev_flow_inverse[0, :9, :, :], dim=0) + prev_flow_inverse[0, 9, :,
+    #                                                                                       :] * mask_boundry
 
-    overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
+    overall = reconstruction_from_prev.data.cpu().numpy() # ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
 
     base_name = os.path.basename(img_path)
     print(base_name)

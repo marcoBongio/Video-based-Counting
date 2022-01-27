@@ -14,7 +14,7 @@ from torch.autograd import Variable
 from torchvision import transforms
 
 from timesformer_fdst import dataset_ts
-from model import FBTSCANNet2s
+from model import FBTSCANNet2s, TSCANNet2s
 from utils import save_checkpoint
 from variables import MODEL_NAME, PATCH_SIZE_PF, MEAN, STD
 
@@ -51,6 +51,7 @@ def main():
     args.best_prec1 = 1e6
     args.lr = 1e-5
     args.batch_size = 1
+    args.virtual_batch_size = 5
     args.momentum = 0.95
     args.decay = 5 * 1e-4
     args.start_epoch = 0
@@ -68,7 +69,7 @@ def main():
 
     torch.cuda.manual_seed(args.seed)
 
-    model = FBTSCANNet2s(load_weights=False, batch_size=args.batch_size)
+    model = TSCANNet2s(load_weights=False, batch_size=args.batch_size)
 
     model = model.cuda()
 
@@ -84,7 +85,7 @@ def main():
         optimizer.load_state_dict(checkpoint['optimizer'])
         print(optimizer)
         args.start_epoch = checkpoint['epoch']
-        args.start_frame = checkpoint['start_frame']
+        args.start_frame = 0 # checkpoint['start_frame']
         try:
             args.best_prec1 = checkpoint['best_prec'].item()
         except:
@@ -109,7 +110,7 @@ def main():
             'state_dict': model.state_dict(),
             'optimizer': optimizer.state_dict(),
             'best_prec': args.best_prec1
-        }, is_best)
+        }, is_best, filename='models/checkpoint_' + MODEL_NAME + '_epoch_' + str(epoch) + '.pth.tar')
 
 
 def train(train_list, model, criterion, optimizer, epoch):
@@ -134,6 +135,8 @@ def train(train_list, model, criterion, optimizer, epoch):
     model.train()
     end = time.time()
 
+    optimizer.zero_grad()
+
     for i, (prev_imgs, img, post_imgs, prev_target, target, post_target) in enumerate(train_loader):
         if i + 1 <= args.start_frame:
             if (i+1) % args.print_freq == 0:
@@ -150,14 +153,14 @@ def train(train_list, model, criterion, optimizer, epoch):
         post_imgs = torch.stack(post_imgs)
 
         prev_flow = model(prev_imgs)
-        prev_flow_inverse = model(prev_imgs, inverse=True)
+        # prev_flow_inverse = model(prev_imgs, inverse=True)
 
         del prev_imgs
         torch.cuda.empty_cache()
 
         post_imgs = Variable(post_imgs, requires_grad=True)
         post_flow = model(post_imgs)
-        post_flow_inverse = model(post_imgs, inverse=True)
+        # post_flow_inverse = model(post_imgs, inverse=True)
 
         del post_imgs
         torch.cuda.empty_cache()
@@ -190,43 +193,43 @@ def train(train_list, model, criterion, optimizer, epoch):
 
         reconstruction_from_post = torch.sum(post_flow[0, :9, :, :], dim=0) + post_flow[0, 9, :, :] * mask_boundry
 
-        reconstruction_from_prev_inverse = torch.sum(prev_flow_inverse[0, :9, :, :], dim=0) + prev_flow_inverse[0, 9, :,
-                                                                                              :] * mask_boundry
+        # reconstruction_from_prev_inverse = torch.sum(prev_flow_inverse[0, :9, :, :], dim=0) + prev_flow_inverse[0, 9, :,
+        #                                                                                       :] * mask_boundry
 
-        reconstruction_from_post_inverse = F.pad(post_flow_inverse[0, 0, 1:, 1:], (0, 1, 0, 1)) + F.pad(
-            post_flow_inverse[0, 1, 1:, :], (0, 0, 0, 1)) + F.pad(post_flow_inverse[0, 2, 1:, :-1],
-                                                                  (1, 0, 0, 1)) + F.pad(post_flow_inverse[0, 3, :, 1:],
-                                                                                        (0, 1, 0,
-                                                                                         0)) + post_flow_inverse[0, 4,
-                                                                                               :, :] + F.pad(
-            post_flow_inverse[0, 5, :, :-1], (1, 0, 0, 0)) + F.pad(post_flow_inverse[0, 6, :-1, 1:],
-                                                                   (0, 1, 1, 0)) + F.pad(
-            post_flow_inverse[0, 7, :-1, :], (0, 0, 1, 0)) + F.pad(post_flow_inverse[0, 8, :-1, :-1],
-                                                                   (1, 0, 1, 0)) + post_flow_inverse[0, 9, :,
-                                                                                   :] * mask_boundry
-
-        prev_density_reconstruction = torch.sum(prev_flow[0, :9, :, :], dim=0) + prev_flow[0, 9, :, :] * mask_boundry
-        prev_density_reconstruction_inverse = F.pad(prev_flow_inverse[0, 0, 1:, 1:], (0, 1, 0, 1)) + F.pad(
-            prev_flow_inverse[0, 1, 1:, :], (0, 0, 0, 1)) + F.pad(prev_flow_inverse[0, 2, 1:, :-1],
-                                                                  (1, 0, 0, 1)) + F.pad(prev_flow_inverse[0, 3, :, 1:],
-                                                                                        (0, 1, 0,
-                                                                                         0)) + prev_flow_inverse[0, 4,
-                                                                                               :, :] + F.pad(
-            prev_flow_inverse[0, 5, :, :-1], (1, 0, 0, 0)) + F.pad(prev_flow_inverse[0, 6, :-1, 1:],
-                                                                   (0, 1, 1, 0)) + F.pad(
-            prev_flow_inverse[0, 7, :-1, :], (0, 0, 1, 0)) + F.pad(prev_flow_inverse[0, 8, :-1, :-1],
-                                                                   (1, 0, 1, 0)) + prev_flow_inverse[0, 9, :,
-                                                                                   :] * mask_boundry
-
-        post_density_reconstruction_inverse = torch.sum(post_flow_inverse[0, :9, :, :], dim=0) + post_flow_inverse[0, 9,
-                                                                                                 :, :] * mask_boundry
-        post_density_reconstruction = F.pad(post_flow[0, 0, 1:, 1:], (0, 1, 0, 1)) + F.pad(post_flow[0, 1, 1:, :],
-                                                                                           (0, 0, 0, 1)) + F.pad(
-            post_flow[0, 2, 1:, :-1], (1, 0, 0, 1)) + F.pad(post_flow[0, 3, :, 1:], (0, 1, 0, 0)) + post_flow[0, 4, :,
-                                                                                                    :] + F.pad(
-            post_flow[0, 5, :, :-1], (1, 0, 0, 0)) + F.pad(post_flow[0, 6, :-1, 1:], (0, 1, 1, 0)) + F.pad(
-            post_flow[0, 7, :-1, :], (0, 0, 1, 0)) + F.pad(post_flow[0, 8, :-1, :-1], (1, 0, 1, 0)) + post_flow[0, 9, :,
-                                                                                                      :] * mask_boundry
+        # reconstruction_from_post_inverse = F.pad(post_flow_inverse[0, 0, 1:, 1:], (0, 1, 0, 1)) + F.pad(
+        #     post_flow_inverse[0, 1, 1:, :], (0, 0, 0, 1)) + F.pad(post_flow_inverse[0, 2, 1:, :-1],
+        #                                                           (1, 0, 0, 1)) + F.pad(post_flow_inverse[0, 3, :, 1:],
+        #                                                                                 (0, 1, 0,
+        #                                                                                  0)) + post_flow_inverse[0, 4,
+        #                                                                                        :, :] + F.pad(
+        #     post_flow_inverse[0, 5, :, :-1], (1, 0, 0, 0)) + F.pad(post_flow_inverse[0, 6, :-1, 1:],
+        #                                                            (0, 1, 1, 0)) + F.pad(
+        #     post_flow_inverse[0, 7, :-1, :], (0, 0, 1, 0)) + F.pad(post_flow_inverse[0, 8, :-1, :-1],
+        #                                                            (1, 0, 1, 0)) + post_flow_inverse[0, 9, :,
+        #                                                                            :] * mask_boundry
+        #
+        # prev_density_reconstruction = torch.sum(prev_flow[0, :9, :, :], dim=0) + prev_flow[0, 9, :, :] * mask_boundry
+        # prev_density_reconstruction_inverse = F.pad(prev_flow_inverse[0, 0, 1:, 1:], (0, 1, 0, 1)) + F.pad(
+        #     prev_flow_inverse[0, 1, 1:, :], (0, 0, 0, 1)) + F.pad(prev_flow_inverse[0, 2, 1:, :-1],
+        #                                                           (1, 0, 0, 1)) + F.pad(prev_flow_inverse[0, 3, :, 1:],
+        #                                                                                 (0, 1, 0,
+        #                                                                                  0)) + prev_flow_inverse[0, 4,
+        #                                                                                        :, :] + F.pad(
+        #     prev_flow_inverse[0, 5, :, :-1], (1, 0, 0, 0)) + F.pad(prev_flow_inverse[0, 6, :-1, 1:],
+        #                                                            (0, 1, 1, 0)) + F.pad(
+        #     prev_flow_inverse[0, 7, :-1, :], (0, 0, 1, 0)) + F.pad(prev_flow_inverse[0, 8, :-1, :-1],
+        #                                                            (1, 0, 1, 0)) + prev_flow_inverse[0, 9, :,
+        #                                                                            :] * mask_boundry
+        #
+        # post_density_reconstruction_inverse = torch.sum(post_flow_inverse[0, :9, :, :], dim=0) + post_flow_inverse[0, 9,
+        #                                                                                          :, :] * mask_boundry
+        # post_density_reconstruction = F.pad(post_flow[0, 0, 1:, 1:], (0, 1, 0, 1)) + F.pad(post_flow[0, 1, 1:, :],
+        #                                                                                    (0, 0, 0, 1)) + F.pad(
+        #     post_flow[0, 2, 1:, :-1], (1, 0, 0, 1)) + F.pad(post_flow[0, 3, :, 1:], (0, 1, 0, 0)) + post_flow[0, 4, :,
+        #                                                                                             :] + F.pad(
+        #     post_flow[0, 5, :, :-1], (1, 0, 0, 0)) + F.pad(post_flow[0, 6, :-1, 1:], (0, 1, 1, 0)) + F.pad(
+        #     post_flow[0, 7, :-1, :], (0, 0, 1, 0)) + F.pad(post_flow[0, 8, :-1, :-1], (1, 0, 1, 0)) + post_flow[0, 9, :,
+        #                                                                                               :] * mask_boundry
 
         prev_reconstruction_from_prev = torch.sum(prev_flow[0, :9, :, :], dim=0) + prev_flow[0, 9, :, :] * mask_boundry
         post_reconstruction_from_post = F.pad(post_flow[0, 0, 1:, 1:], (0, 1, 0, 1)) + F.pad(post_flow[0, 1, 1:, :],
@@ -239,57 +242,58 @@ def train(train_list, model, criterion, optimizer, epoch):
 
         loss_prev_flow = criterion(reconstruction_from_prev, target)
         loss_post_flow = criterion(reconstruction_from_post, target)
-        loss_prev_flow_inverse = criterion(reconstruction_from_prev_inverse, target)
-        loss_post_flow_inverse = criterion(reconstruction_from_post_inverse, target)
+        # loss_prev_flow_inverse = criterion(reconstruction_from_prev_inverse, target)
+        # loss_post_flow_inverse = criterion(reconstruction_from_post_inverse, target)
         loss_prev = criterion(prev_reconstruction_from_prev, prev_target)
         loss_post = criterion(post_reconstruction_from_post, post_target)
 
         # cycle consistency
-        loss_prev_consistency = criterion(prev_flow[0, 0, 1:, 1:], prev_flow_inverse[0, 8, :-1, :-1]) + criterion(
-            prev_flow[0, 1, 1:, :], prev_flow_inverse[0, 7, :-1, :]) + criterion(prev_flow[0, 2, 1:, :-1],
-                                                                                 prev_flow_inverse[0, 6, :-1,
-                                                                                 1:]) + criterion(
-            prev_flow[0, 3, :, 1:], prev_flow_inverse[0, 5, :, :-1]) + criterion(prev_flow[0, 4, :, :],
-                                                                                 prev_flow_inverse[0, 4, :,
-                                                                                 :]) + criterion(
-            prev_flow[0, 5, :, :-1], prev_flow_inverse[0, 3, :, 1:]) + criterion(prev_flow[0, 6, :-1, 1:],
-                                                                                 prev_flow_inverse[0, 2, 1:,
-                                                                                 :-1]) + criterion(
-            prev_flow[0, 7, :-1, :], prev_flow_inverse[0, 1, 1:, :]) + criterion(prev_flow[0, 8, :-1, :-1],
-                                                                                 prev_flow_inverse[0, 0, 1:, 1:])
+        # loss_prev_consistency = criterion(prev_flow[0, 0, 1:, 1:], prev_flow_inverse[0, 8, :-1, :-1]) + criterion(
+        #     prev_flow[0, 1, 1:, :], prev_flow_inverse[0, 7, :-1, :]) + criterion(prev_flow[0, 2, 1:, :-1],
+        #                                                                          prev_flow_inverse[0, 6, :-1,
+        #                                                                          1:]) + criterion(
+        #     prev_flow[0, 3, :, 1:], prev_flow_inverse[0, 5, :, :-1]) + criterion(prev_flow[0, 4, :, :],
+        #                                                                          prev_flow_inverse[0, 4, :,
+        #                                                                          :]) + criterion(
+        #     prev_flow[0, 5, :, :-1], prev_flow_inverse[0, 3, :, 1:]) + criterion(prev_flow[0, 6, :-1, 1:],
+        #                                                                          prev_flow_inverse[0, 2, 1:,
+        #                                                                          :-1]) + criterion(
+        #     prev_flow[0, 7, :-1, :], prev_flow_inverse[0, 1, 1:, :]) + criterion(prev_flow[0, 8, :-1, :-1],
+        #                                                                          prev_flow_inverse[0, 0, 1:, 1:])
+        #
+        # loss_post_consistency = criterion(post_flow[0, 0, 1:, 1:], post_flow_inverse[0, 8, :-1, :-1]) + criterion(
+        #     post_flow[0, 1, 1:, :], post_flow_inverse[0, 7, :-1, :]) + criterion(post_flow[0, 2, 1:, :-1],
+        #                                                                          post_flow_inverse[0, 6, :-1,
+        #                                                                          1:]) + criterion(
+        #     post_flow[0, 3, :, 1:], post_flow_inverse[0, 5, :, :-1]) + criterion(post_flow[0, 4, :, :],
+        #                                                                          post_flow_inverse[0, 4, :,
+        #                                                                          :]) + criterion(
+        #     post_flow[0, 5, :, :-1], post_flow_inverse[0, 3, :, 1:]) + criterion(post_flow[0, 6, :-1, 1:],
+        #                                                                          post_flow_inverse[0, 2, 1:,
+        #                                                                          :-1]) + criterion(
+        #     post_flow[0, 7, :-1, :], post_flow_inverse[0, 1, 1:, :]) + criterion(post_flow[0, 8, :-1, :-1],
+        #                                                                          post_flow_inverse[0, 0, 1:, 1:])
 
-        loss_post_consistency = criterion(post_flow[0, 0, 1:, 1:], post_flow_inverse[0, 8, :-1, :-1]) + criterion(
-            post_flow[0, 1, 1:, :], post_flow_inverse[0, 7, :-1, :]) + criterion(post_flow[0, 2, 1:, :-1],
-                                                                                 post_flow_inverse[0, 6, :-1,
-                                                                                 1:]) + criterion(
-            post_flow[0, 3, :, 1:], post_flow_inverse[0, 5, :, :-1]) + criterion(post_flow[0, 4, :, :],
-                                                                                 post_flow_inverse[0, 4, :,
-                                                                                 :]) + criterion(
-            post_flow[0, 5, :, :-1], post_flow_inverse[0, 3, :, 1:]) + criterion(post_flow[0, 6, :-1, 1:],
-                                                                                 post_flow_inverse[0, 2, 1:,
-                                                                                 :-1]) + criterion(
-            post_flow[0, 7, :-1, :], post_flow_inverse[0, 1, 1:, :]) + criterion(post_flow[0, 8, :-1, :-1],
-                                                                                 post_flow_inverse[0, 0, 1:, 1:])
-
-        loss = loss_prev_flow + loss_post_flow + loss_prev_flow_inverse + loss_post_flow_inverse + loss_prev + loss_post + loss_prev_consistency + loss_post_consistency
+        loss = loss_prev_flow + loss_post_flow + loss_prev + loss_post
 
         losses.update(loss.item(), img.size(0))
-        optimizer.zero_grad()
         loss.backward()
-        optimizer.step()
+        if (i + 1) % args.virtual_batch_size == 0:
+            optimizer.step()
+            optimizer.zero_grad()
 
         batch_time.update(time.time() - end)
         end = time.time()
 
         if (i + 1) % args.print_freq == 0:
             print("\nTarget = " + str(torch.sum(target)))
-            overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
+            overall = (reconstruction_from_prev).data.cpu().numpy()
             pred_sum = overall.sum()
             print("Pred = " + str(pred_sum))
             print("Reconstruction from prev = " + str(torch.sum(reconstruction_from_prev)))
             print("Reconstruction from post = " + str(torch.sum(reconstruction_from_post)))
-            print("Reconstruction from prev inverse = " + str(torch.sum(reconstruction_from_prev_inverse)))
-            print("Reconstruction from post inverse = " + str(torch.sum(reconstruction_from_post_inverse)))
+            # print("Reconstruction from prev inverse = " + str(torch.sum(reconstruction_from_prev_inverse)))
+            # print("Reconstruction from post inverse = " + str(torch.sum(reconstruction_from_post_inverse)))
             print("Prev Target = " + str(torch.sum(prev_target)))
             print("Prev Reconstruction from prev = " + str(torch.sum(reconstruction_from_prev)))
             print("Post Target = " + str(torch.sum(post_target)))
@@ -297,12 +301,12 @@ def train(train_list, model, criterion, optimizer, epoch):
 
             print("loss_prev_flow = " + str(loss_prev_flow))
             print("loss_post_flow = " + str(loss_post_flow))
-            print("loss_prev_flow_inverse = " + str(loss_prev_flow_inverse))
-            print("loss_post_flow_inverse = " + str(loss_post_flow_inverse))
+            # print("loss_prev_flow_inverse = " + str(loss_prev_flow_inverse))
+            # print("loss_post_flow_inverse = " + str(loss_post_flow_inverse))
             print("loss_prev = " + str(loss_prev))
             print("loss_post = " + str(loss_post))
-            print("loss_prev_consistency = " + str(loss_prev_consistency))
-            print("loss_post_consistency = " + str(loss_post_consistency))
+            # print("loss_prev_consistency = " + str(loss_prev_consistency))
+            # print("loss_post_consistency = " + str(loss_post_consistency))
 
             pred = cv2.resize(overall, (overall.shape[1] * PATCH_SIZE_PF, overall.shape[0] * PATCH_SIZE_PF),
                               interpolation=cv2.INTER_CUBIC) / (PATCH_SIZE_PF ** 2)
@@ -364,7 +368,7 @@ def validate(val_list, model, criterion):
 
         with torch.no_grad():
             prev_flow = model(prev_imgs)
-            prev_flow_inverse = model(prev_imgs, inverse=True)
+            # prev_flow_inverse = model(prev_imgs, inverse=True)
 
         target = target.type(torch.FloatTensor)[0].cuda()
         target = Variable(target)
@@ -385,10 +389,10 @@ def validate(val_list, model, criterion):
             prev_flow[0, 7, :-1, :], (0, 0, 1, 0)) + F.pad(prev_flow[0, 8, :-1, :-1], (1, 0, 1, 0)) + prev_flow[0, 9, :,
                                                                                                       :] * mask_boundry
 
-        reconstruction_from_prev_inverse = torch.sum(prev_flow_inverse[0, :9, :, :], dim=0) + prev_flow_inverse[0, 9, :,
-                                                                                              :] * mask_boundry
+        # reconstruction_from_prev_inverse = torch.sum(prev_flow_inverse[0, :9, :, :], dim=0) + prev_flow_inverse[0, 9, :,
+        #                                                                                       :] * mask_boundry
 
-        overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).type(torch.FloatTensor)
+        overall = reconstruction_from_prev.type(torch.FloatTensor) # ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).type(torch.FloatTensor)
 
         target = target.type(torch.FloatTensor)
 

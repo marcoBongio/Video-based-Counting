@@ -8,8 +8,10 @@ from torch.autograd import Variable
 from torchvision import transforms
 
 from image import *
-from model import FBTSCANNet2s
+from model import TSCANNet2s
 from variables import HEIGHT, WIDTH, MODEL_NAME, MEAN, STD, NUM_FRAMES
+
+import pdb
 
 transform = transforms.Compose([
     transforms.ToTensor(), transforms.Normalize(mean=MEAN,
@@ -22,7 +24,7 @@ test_json_path = 'test.json'
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
 
-model = FBTSCANNet2s()
+model = TSCANNet2s(load_weights=False, batch_size=1)
 
 model = model.cuda()
 
@@ -73,7 +75,7 @@ for i in range(len(img_paths)):
 
     with torch.no_grad():
         prev_flow = model(prev_imgs)
-        prev_flow_inverse = model(prev_imgs, inverse=True)
+        # prev_flow_inverse = model(prev_imgs, inverse=True)
 
     mask_boundry = torch.zeros(prev_flow.shape[2:])
     mask_boundry[0, :] = 1.0
@@ -91,10 +93,10 @@ for i in range(len(img_paths)):
         prev_flow[0, 7, :-1, :], (0, 0, 1, 0)) + F.pad(prev_flow[0, 8, :-1, :-1], (1, 0, 1, 0)) + prev_flow[0, 9, :,
                                                                                                   :] * mask_boundry
 
-    reconstruction_from_prev_inverse = torch.sum(prev_flow_inverse[0, :9, :, :], dim=0) + prev_flow_inverse[0, 9, :,
-                                                                                          :] * mask_boundry
-
-    overall = ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
+    # reconstruction_from_prev_inverse = torch.sum(prev_flow_inverse[0, :9, :, :], dim=0) + prev_flow_inverse[0, 9, :,
+    #                                                                                      :] * mask_boundry
+    # pdb.set_trace()
+    overall = reconstruction_from_prev.data.cpu().numpy() # ((reconstruction_from_prev + reconstruction_from_prev_inverse) / 2.0).data.cpu().numpy()
     target = target
 
     pred_sum = overall.sum()
