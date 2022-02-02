@@ -67,9 +67,6 @@ for i in range(len(img_paths)):
     gt_path = img_path.replace('.jpg', '_resize.h5')
     gt_file = h5py.File(gt_path)
     target = np.asarray(gt_file['density'])
-    # print(np.sum(target))
-    # target = cv2.resize(target, (int(target.shape[1] / 8), int(target.shape[0] / 8)),
-    #                   interpolation=cv2.INTER_CUBIC) * 64
 
     prev_img = prev_img.cuda()
     prev_img = Variable(prev_img)

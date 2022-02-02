@@ -1,7 +1,6 @@
 import json
 import os
 from os.path import join
-import random
 
 if __name__ == '__main__':
     # root is the path to your code, which is current directory

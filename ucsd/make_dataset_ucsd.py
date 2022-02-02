@@ -51,13 +51,7 @@ for path in path_sets:
             k[y_anno, x_anno] = 1
         k = gaussian_filter(k, 3)
 
-        # plt.imshow(k)
-        # plt.show()
-
         k *= roi
-
-        # plt.imshow(k)
-        # plt.show()
 
         with h5py.File(img_path.replace('.png', '_resize.h5'), 'w') as hf:
             hf['density'] = k

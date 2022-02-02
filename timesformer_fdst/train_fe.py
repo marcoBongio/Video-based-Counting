@@ -1,7 +1,5 @@
 import argparse
-import gc
 import json
-import os
 import time
 
 import cv2
@@ -13,7 +11,6 @@ from matplotlib import cm
 from torch import nn
 from torch.autograd import Variable
 from torchinfo import summary
-from torchvision import transforms
 
 import dataset_fe
 from model import FETSCANNet2s
@@ -289,15 +286,6 @@ def train(train_list, model, criterion, optimizer, epoch):
             plotDensity(pred, axarr, 0)
             plotDensity(target, axarr, 1)
             plt.show()
-
-        del prev_flow, post_flow, prev_flow_inverse, post_flow_inverse, loss_prev_flow, \
-            loss_post_flow, loss_prev_flow_inverse, loss_post_flow_inverse, loss_prev, loss_post, loss_prev_consistency, \
-            loss_post_consistency, mask_boundry, post_density_reconstruction, post_density_reconstruction_inverse, \
-            post_reconstruction_from_post, post_target, prev_density_reconstruction, prev_density_reconstruction_inverse, \
-            prev_reconstruction_from_prev, prev_target, reconstruction_from_post, reconstruction_from_post_inverse, \
-            reconstruction_from_prev, reconstruction_from_prev_inverse, target
-
-        torch.cuda.empty_cache()
 
         loss.backward()
         optimizer.step()

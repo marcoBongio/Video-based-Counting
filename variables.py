@@ -10,15 +10,15 @@ if MODE == 'concat':
 elif MODE == 'weighted':
     BE_CHANNELS = 512
 
-MODEL_NAME = "timesformer_640x320_3frames_1layer_no-spatial-att"
+MODEL_NAME = ""
 
 # TimeSformer parameters
 WIDTH_TS = WIDTH // PATCH_SIZE_PF
 HEIGHT_TS = HEIGHT // PATCH_SIZE_PF
 IN_CHANS = 512
-NUM_FRAMES = 4
-PATCH_SIZE_TS = 2
-DEPTH_TS = 2
-NUM_HEADS = 8
-EMBED_DIM = 2048
+NUM_FRAMES = 3
+PATCH_SIZE_TS = 1
+DEPTH_TS = 1
+NUM_HEADS = 1
+EMBED_DIM = 512
 DIM_HEAD = EMBED_DIM // NUM_HEADS

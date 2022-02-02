@@ -25,7 +25,7 @@ test_json_path = 'test.json'
 with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
 
-model = CANNet2s()
+model = SACANNet2s()
 
 model = model.cuda()
 

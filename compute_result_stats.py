@@ -66,7 +66,7 @@ with open(test_json_path, 'r') as outfile:
     img_paths = json.load(outfile)
 
 indexes = list(range(len(errs)))
-# print error|GT|prediction in reverse order according to the error
+# print error|GT|prediction in order according to the error
 print("Image \t | Error \t | Ground-Truth \t | Prediction")
 errs, gt, pred, indexes = zip(*sorted(zip(errs, gt, pred, indexes), reverse=False))
 for i in range(len(errs)):

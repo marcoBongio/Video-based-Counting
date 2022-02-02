@@ -51,7 +51,7 @@ for i in range(len(img_paths)):
     print(str(i) + "/" + str(len(img_paths)))
     img_folder = os.path.dirname(img_path)
     img_name = os.path.basename(img_path)
-    # print(img_path)
+
     index = img_name.split('.')[0]
     index = int(index.split('f')[-1])
 

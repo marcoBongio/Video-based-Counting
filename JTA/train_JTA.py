@@ -59,7 +59,6 @@ def main():
     args.workers = 4
     args.seed = int(time.time())
     args.print_freq = 900
-    args.log_freg = 4500
 
     with open(args.train_json, 'r') as outfile:
         args.train_list = json.load(outfile)
@@ -103,8 +102,8 @@ def main():
         is_best = prec1 < args.best_prec1
         args.best_prec1 = min(prec1, args.best_prec1)
         args.start_frame = 0
-        print(' * best MSE {mse:.3f} '
-              .format(mse=args.best_prec1))
+        print(' * best MAE {mae:.3f} '
+              .format(mae=args.best_prec1))
         save_checkpoint({
             'epoch': epoch + 1,
             'start_frame': 0,
@@ -319,21 +318,6 @@ def train(train_list, model, criterion, optimizer, epoch):
                 epoch, i + 1, len(train_loader), batch_time=batch_time,
                 data_time=data_time, loss=losses))
 
-        if ((i + 1) % args.log_freg == 0) & ((i + 1) != len(train_loader)):
-            prec1 = validate(args.val_list, model, criterion)
-
-            is_best = prec1 < args.best_prec1
-            args.best_prec1 = min(prec1, args.best_prec1)
-            print(' * best MSE {mse:.3f} '
-                  .format(mse=args.best_prec1))
-            save_checkpoint({
-                'epoch': epoch,
-                'start_frame': i + 1,
-                'state_dict': model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'best_prec': args.best_prec1
-            }, is_best)
-
 
 def validate(val_list, model, criterion):
     print('begin val')
@@ -403,7 +387,7 @@ def validate(val_list, model, criterion):
     print(' * MSE {mse:.3f} '
           .format(mse=mse))
 
-    return mse
+    return mae
 
 
 class AverageMeter(object):

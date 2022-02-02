@@ -1,10 +1,8 @@
 import glob
 
 import scipy.io
-import skimage
 from matplotlib import pyplot as plt
 from scipy.ndimage.filters import gaussian_filter
-from skimage import transform
 
 from image import *
 from variables import HEIGHT, WIDTH

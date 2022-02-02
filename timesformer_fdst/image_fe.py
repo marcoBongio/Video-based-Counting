@@ -1,21 +1,18 @@
-import math
 import os
 
-import torch
-from PIL import Image
-import numpy as np
-import h5py
 import cv2
-from matplotlib import pyplot as plt
+import h5py
+import numpy as np
+import torch
 
-from variables import PATCH_SIZE_PF, HEIGHT, WIDTH, NUM_FRAMES
+from variables import PATCH_SIZE_PF, NUM_FRAMES
 
 
 def load_data(img_path, train=True):
     img_folder = os.path.dirname(img_path)
     img_name = os.path.basename(img_path)
     index = int(img_name.split('.')[0])
-    # print(img_path)
+
     img = torch.load(img_path.replace('.jpg', '_features.pt'))
     prev_imgs = torch.FloatTensor().cuda()
     post_imgs = torch.FloatTensor().cuda()
@@ -26,7 +23,7 @@ def load_data(img_path, train=True):
         prev_index = int(max(1, index - i))
         prev_img_path = os.path.join(img_folder, '%03d.jpg' % prev_index)
         prev_img = torch.load(prev_img_path.replace('.jpg', '_features.pt'))
-        # print(prev_img_path)
+
         prev_imgs = torch.cat((prev_imgs, prev_img), 0)
 
     prev_imgs = torch.cat((prev_imgs, img), 0)
@@ -36,7 +33,7 @@ def load_data(img_path, train=True):
         post_index = int(min(150, index + i))
         post_img_path = os.path.join(img_folder, '%03d.jpg' % post_index)
         post_img = torch.load(post_img_path.replace('.jpg', '_features.pt'))
-        # print(post_img_path)
+
         post_imgs = torch.cat((post_imgs, post_img), 0)
 
     gt_path = img_path.replace('.jpg', '_resize.h5')

@@ -5,3 +5,6 @@
 test_data/*
 train_data/*
 plot/*
+*.jpg
+*.csv
+*.json
