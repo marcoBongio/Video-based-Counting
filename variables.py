@@ -10,7 +10,7 @@ if MODE == 'concat':
 elif MODE == 'weighted':
     BE_CHANNELS = 512
 
-MODEL_NAME = ""
+MODEL_NAME = "4sacnn_cat_mse"
 
 # TimeSformer parameters
 WIDTH_TS = WIDTH // PATCH_SIZE_PF

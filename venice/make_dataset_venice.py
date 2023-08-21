@@ -45,4 +45,5 @@ for img_path in img_paths:
 
     with h5py.File(img_path.replace('.jpg', '_resize.h5'), 'w') as hf:
         hf['density'] = k
+        print("GT = " + str(np.sum(hf['density'])))
         hf.close()

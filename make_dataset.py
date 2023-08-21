@@ -39,6 +39,7 @@ for img_path in img_paths:
         x_anno = min(int(anno_list[i]['shape_attributes']['x'] / rate_w), WIDTH)
         k[y_anno, x_anno] = 1
     k = gaussian_filter(k, 3)
+
     with h5py.File(img_path.replace('.jpg', '_resize.h5'), 'w') as hf:
         hf['density'] = k
         hf.close()
